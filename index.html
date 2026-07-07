@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>THE SERPENT'S GARDEN</title>
 <!-- v3: procedural textures, dense orchard, devouring death -->
 <style>
@@ -29,6 +30,7 @@
     cursor: pointer; transition: all .4s;
   }
   .btn:hover { background: #1a0505; color: #d86c5c; box-shadow: 0 0 25px rgba(122,14,14,.4); }
+  .modebtn.active { border-color: #b99a45 !important; color: #d9b95c !important; box-shadow: 0 0 18px rgba(185,154,69,.25); }
 
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; display: none; }
   #hud.on { display: block; }
@@ -91,6 +93,36 @@
   }
 
   #death h1 { font-size: 40px; color: #8a1515; letter-spacing: 14px; }
+  /* ---- touch controls ---- */
+  #touchUI { position: fixed; inset: 0; z-index: 6; display: none; pointer-events: none; }
+  #touchUI.on { display: block; }
+  #stickBase {
+    position: absolute; left: 28px; bottom: 90px; width: 112px; height: 112px;
+    border: 1px solid rgba(200,185,150,.22); border-radius: 50%;
+    background: rgba(255,255,255,.03); display: none;
+  }
+  #stickNub {
+    position: absolute; left: 50%; top: 50%; width: 46px; height: 46px;
+    margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(200,185,150,.28);
+  }
+  #sacBtn {
+    position: absolute; right: 26px; bottom: 104px; width: 76px; height: 76px;
+    border-radius: 50%; border: 1px solid #5a1010; color: #a8493f;
+    background: rgba(26,5,5,.55); font-family: Georgia, serif; font-size: 11px;
+    letter-spacing: 1px; pointer-events: auto;
+  }
+  #sacBtn:active { background: rgba(90,16,16,.6); }
+
+  @media (max-width: 700px) {
+    h1 { font-size: 26px !important; letter-spacing: 5px !important; }
+    .sub { font-size: 13px; max-width: 92vw; }
+    .btn { font-size: 13px !important; padding: 11px 22px !important; letter-spacing: 2px !important; }
+    .screen { gap: 12px; padding: 18px; }
+    #scoreList { min-width: 0 !important; width: 92vw; }
+    .scoreRow { font-size: 13px; gap: 8px; }
+    #timer { font-size: 16px; }
+  }
+
   #scoreList { display: flex; flex-direction: column; min-width: 360px; }
   .scoreRow {
     display: flex; justify-content: space-between; gap: 20px;
@@ -113,6 +145,11 @@
 <div id="jawTop"></div>
 <div id="jawBot"></div>
 
+<div id="touchUI">
+  <div id="stickBase"><div id="stickNub"></div></div>
+  <button id="sacBtn">SACRIFICE</button>
+</div>
+
 <div id="hud">
   <div id="timer">0:00</div>
   <div id="kin"></div>
@@ -131,7 +168,20 @@
     <button id="begin" class="btn">ENTER THE GARDEN</button>
     <button id="helpBtn" class="btn" style="border-color:#3a382e; color:#8a8470;">HOW TO SURVIVE</button>
     <button id="scoresBtn" class="btn" style="border-color:#3a382e; color:#8a8470;">THE DEVOURED</button>
+    <button id="settingsBtn" class="btn" style="border-color:#3a382e; color:#8a8470;">SETTINGS</button>
   </div>
+</div>
+
+<div id="settings" class="screen hidden">
+  <h1 style="font-size:28px; letter-spacing:6px;">SETTINGS</h1>
+  <p class="sub">Controls</p>
+  <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
+    <button id="modeAuto" class="btn modebtn" style="font-size:13px;padding:11px 26px;">AUTO-DETECT</button>
+    <button id="modePc" class="btn modebtn" style="font-size:13px;padding:11px 26px;">PC — MOUSE &amp; KEYS</button>
+    <button id="modeTouch" class="btn modebtn" style="font-size:13px;padding:11px 26px;">MOBILE — TOUCH</button>
+  </div>
+  <p class="sub" id="modeDesc" style="font-size:13px;"></p>
+  <button id="settingsBack" class="btn" style="font-size:14px; padding:11px 34px;">BACK</button>
 </div>
 
 <div id="scores" class="screen hidden">
@@ -152,6 +202,7 @@
   <p class="sub" style="color:#7a6a45">When it closes in, press <b>E</b> to cast a gathered kin into the dirt.<br>
   The cobra will stop to feed. Your kin will feel it. Run anyway.</p>
   <p class="warn">W A S D — MOVE &nbsp;&bull;&nbsp; MOUSE — LOOK &nbsp;&bull;&nbsp; E — SACRIFICE A KIN</p>
+  <p class="warn">ON TOUCH: LEFT THUMB — MOVE &nbsp;&bull;&nbsp; RIGHT THUMB — LOOK &nbsp;&bull;&nbsp; RED BUTTON — SACRIFICE</p>
   <button id="helpBack" class="btn" style="font-size:14px; padding:11px 34px;">BACK</button>
 </div>
 
@@ -176,7 +227,7 @@
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 1.5 : 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 const scene = new THREE.Scene();
@@ -1081,7 +1132,71 @@ function slowHeart() { // your last three heartbeats
 }
 
 // ================= INPUT =================
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+let usingTouch = false; // becomes true only when a finger actually touches the screen
+let controlMode = 'auto'; // 'auto' | 'pc' | 'touch'
+try { controlMode = localStorage.getItem('serpentControls') || 'auto'; } catch (e) {}
+function effectiveTouch() { return controlMode === 'touch' || (controlMode === 'auto' && usingTouch); }
 const keys = {};
+// ---- touch: left thumb walks, right thumb looks ----
+let joyId = null, lookId = null;
+const joyVec = { x: 0, y: 0 };
+let joyAnchor = { x: 0, y: 0 }, lookLast = { x: 0, y: 0 };
+function handleTouchStart(e) {
+  if (controlMode === 'pc') return; // the user has spoken: keyboard or nothing
+  usingTouch = true;
+  if (!player.alive) return;
+  $('touchUI').classList.add('on');
+  for (const t of e.changedTouches) {
+    if (t.clientX < innerWidth * 0.45 && joyId === null) {
+      joyId = t.identifier;
+      joyAnchor = { x: t.clientX, y: t.clientY };
+      const base = document.getElementById('stickBase');
+      base.style.display = 'block';
+      base.style.left = (t.clientX - 56) + 'px';
+      base.style.top = (t.clientY - 56) + 'px';
+      base.style.bottom = 'auto';
+    } else if (lookId === null) {
+      lookId = t.identifier;
+      lookLast = { x: t.clientX, y: t.clientY };
+    }
+  }
+  e.preventDefault();
+}
+function handleTouchMove(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joyId) {
+      const dx = (t.clientX - joyAnchor.x) / 48, dy = (t.clientY - joyAnchor.y) / 48;
+      const len = Math.hypot(dx, dy) || 1;
+      joyVec.x = Math.abs(dx) > 1 ? dx / len : dx;
+      joyVec.y = Math.abs(dy) > 1 ? dy / len : dy;
+      const nub = document.getElementById('stickNub');
+      nub.style.transform = `translate(${joyVec.x * 30}px, ${joyVec.y * 30}px)`;
+    } else if (t.identifier === lookId && player.alive) {
+      player.yaw -= (t.clientX - lookLast.x) * 0.0058;
+      player.pitch -= (t.clientY - lookLast.y) * 0.0058;
+      player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
+      lookLast = { x: t.clientX, y: t.clientY };
+    }
+  }
+  e.preventDefault();
+}
+function handleTouchEnd(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joyId) {
+      joyId = null; joyVec.x = 0; joyVec.y = 0;
+      const base = document.getElementById('stickBase');
+      base.style.display = 'none';
+      document.getElementById('stickNub').style.transform = 'translate(0,0)';
+    } else if (t.identifier === lookId) lookId = null;
+  }
+}
+if (isTouch) {
+  canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+  canvas.addEventListener('touchend', handleTouchEnd);
+  canvas.addEventListener('touchcancel', handleTouchEnd);
+}
 addEventListener('keydown', e => keys[e.code] = true);
 addEventListener('keyup', e => keys[e.code] = false);
 document.addEventListener('mousemove', e => {
@@ -1238,6 +1353,7 @@ function startGame() {
   $('death').classList.add('hidden');
   $('help').classList.add('hidden');
   $('scores').classList.add('hidden');
+  $('settings').classList.add('hidden');
   stopMusic();
   $('hud').classList.add('on');
   $('bloodveil').style.opacity = 0;
@@ -1245,7 +1361,12 @@ function startGame() {
   $('bloodsplat').style.opacity = 0;
   $('jawTop').style.top = '-60%';
   $('jawBot').style.bottom = '-60%';
-  canvas.requestPointerLock();
+  if (effectiveTouch()) {
+    $('touchUI').classList.add('on');
+    try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); } catch (err) {}
+  } else {
+    try { canvas.requestPointerLock(); } catch (err) {}
+  }
   if (!AC) initAudio();
   if (AC.state === 'suspended') AC.resume();
 }
@@ -1255,6 +1376,28 @@ $('helpBtn').onclick = () => { $('title').classList.add('hidden'); $('help').cla
 $('helpBack').onclick = () => { $('help').classList.add('hidden'); $('title').classList.remove('hidden'); };
 $('scoresBtn').onclick = () => { renderScores(); $('title').classList.add('hidden'); $('scores').classList.remove('hidden'); };
 $('scoresBack').onclick = () => { $('scores').classList.add('hidden'); $('title').classList.remove('hidden'); };
+// ---- settings ----
+const MODE_DESC = {
+  auto: 'The garden decides: mouse users get pointer lock, the first touch summons the joystick.',
+  pc: 'Pointer lock and keyboard, always. Touch input is ignored entirely.',
+  touch: 'Joystick, drag-look and the sacrifice button, always. For touchscreens of every kind.'
+};
+function updateModeButtons() {
+  for (const [id, m] of [['modeAuto', 'auto'], ['modePc', 'pc'], ['modeTouch', 'touch']])
+    $(id).classList.toggle('active', controlMode === m);
+  $('modeDesc').textContent = MODE_DESC[controlMode];
+}
+function setControlMode(m) {
+  controlMode = m;
+  try { localStorage.setItem('serpentControls', m); } catch (e) {}
+  if (m === 'pc') { usingTouch = false; $('touchUI').classList.remove('on'); }
+  updateModeButtons();
+}
+$('modeAuto').onclick = () => setControlMode('auto');
+$('modePc').onclick = () => setControlMode('pc');
+$('modeTouch').onclick = () => setControlMode('touch');
+$('settingsBtn').onclick = () => { updateModeButtons(); $('title').classList.add('hidden'); $('settings').classList.remove('hidden'); };
+$('settingsBack').onclick = () => { $('settings').classList.add('hidden'); $('title').classList.remove('hidden'); };
 $('toTitle').onclick = () => { $('death').classList.add('hidden'); $('title').classList.remove('hidden'); startMusic('title'); };
 
 let scareT = -1, scarePhase = 0, blackoutT = 0, panicShake = 0;
@@ -1280,6 +1423,7 @@ function dropBait() {
   sting();
 }
 addEventListener('keydown', e => { if (e.code === 'KeyE') dropBait(); });
+document.getElementById('sacBtn').addEventListener('touchstart', e => { e.preventDefault(); dropBait(); }, { passive: false });
 function die() {
   player.alive = false;
   scareT = 0; scarePhase = 0; chewsDone = 0; dripsDone = 0;
@@ -1298,7 +1442,8 @@ function die() {
   }
   roar(); growl();
   startMusic('dread'); // the underscore of being eaten
-  document.exitPointerLock();
+  $('touchUI').classList.remove('on');
+  if (document.pointerLockElement) document.exitPointerLock();
 }
 
 // ================= MAIN LOOP =================
@@ -1538,6 +1683,9 @@ function animate() {
     if (keys['KeyS'] || keys['ArrowDown']) wish.sub(fwd);
     if (keys['KeyA'] || keys['ArrowLeft']) wish.sub(right);
     if (keys['KeyD'] || keys['ArrowRight']) wish.add(right);
+    if (Math.abs(joyVec.x) > 0.12 || Math.abs(joyVec.y) > 0.12) {
+      wish.addScaledVector(fwd, -joyVec.y).addScaledVector(right, joyVec.x);
+    }
     if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
     player.vel.lerp(wish, 1 - Math.pow(0.0001, dt));
     player.pos.addScaledVector(player.vel, dt);
