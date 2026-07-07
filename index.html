@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>THE SERPENT'S GARDEN</title>
+<!-- v3: procedural textures, dense orchard, devouring death -->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; color: #c9c4b8; }
+  #c { display: block; }
+
+  .screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: #000; z-index: 10; padding: 30px; gap: 18px;
+  }
+  .hidden { display: none !important; }
+  h1 {
+    font-size: 42px; letter-spacing: 10px; color: #7a0e0e; font-weight: normal;
+    text-shadow: 0 0 30px rgba(122, 14, 14, 0.8);
+    animation: breathe 4s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+  .sub { font-size: 15px; color: #6b6557; max-width: 460px; line-height: 1.9; font-style: italic; }
+  .warn { font-size: 12px; color: #4a4438; letter-spacing: 2px; }
+  .btn {
+    margin-top: 10px; background: none; border: 1px solid #5a1010; color: #a8493f;
+    font-family: inherit; font-size: 16px; letter-spacing: 4px; padding: 13px 42px;
+    cursor: pointer; transition: all .4s;
+  }
+  .btn:hover { background: #1a0505; color: #d86c5c; box-shadow: 0 0 25px rgba(122,14,14,.4); }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; display: none; }
+  #hud.on { display: block; }
+  #timer {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+    font-size: 20px; letter-spacing: 5px; color: rgba(180,170,150,.55);
+  }
+  #kin {
+    position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; letter-spacing: 3px; color: rgba(212,175,55,.5);
+  }
+  #battwrap {
+    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+    width: 190px; text-align: center;
+  }
+  #battlabel { font-size: 10px; letter-spacing: 4px; color: rgba(160,150,130,.45); margin-bottom: 6px; }
+  #battbar { height: 4px; background: rgba(255,255,255,.08); }
+  #battfill { height: 100%; width: 100%; background: rgba(200,185,150,.65); transition: width .3s; }
+  #whisper {
+    position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+    font-size: 15px; font-style: italic; color: rgba(150,30,30,0); letter-spacing: 2px;
+    transition: color 1.2s; text-shadow: 0 0 12px rgba(122,14,14,.7); white-space: nowrap;
+  }
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,.88) 100%);
+  }
+  #bloodveil {
+    position: fixed; inset: 0; pointer-events: none; z-index: 6; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(120,0,0,.25) 0%, rgba(60,0,0,.75) 100%);
+    transition: opacity .8s;
+  }
+  #scarered { position: fixed; inset: 0; pointer-events: none; z-index: 8; opacity: 0; background: #300000; }
+
+  /* ---- THE JAWS ---- */
+  #jawTop, #jawBot {
+    position: fixed; left: -2%; width: 104%; height: 56%;
+    background: linear-gradient(#020101, #0d0403); z-index: 9; pointer-events: none;
+  }
+  #jawTop { top: -60%;
+    clip-path: polygon(0 0,100% 0,100% 72%, 95% 98%, 90% 70%, 85% 96%, 80% 68%, 74% 100%, 68% 72%, 62% 95%, 56% 69%, 50% 100%, 44% 70%, 38% 97%, 32% 68%, 26% 99%, 20% 71%, 14% 95%, 8% 69%, 4% 92%, 0 70%);
+  }
+  #jawBot { bottom: -60%;
+    clip-path: polygon(0 100%,100% 100%,100% 30%, 96% 4%, 91% 32%, 85% 6%, 79% 30%, 73% 2%, 67% 28%, 61% 5%, 55% 31%, 49% 0%, 43% 30%, 37% 3%, 31% 32%, 25% 1%, 19% 29%, 13% 5%, 7% 31%, 3% 8%, 0 30%);
+  }
+  #gullet {
+    position: fixed; inset: 0; z-index: 8; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, #1a0000 0%, #000 75%);
+  }
+  #bloodsplat {
+    position: fixed; inset: 0; z-index: 8; pointer-events: none; opacity: 0;
+    background:
+      radial-gradient(circle at 22% 28%, rgba(110,4,4,.85) 0 3%, transparent 7%),
+      radial-gradient(circle at 71% 18%, rgba(90,2,2,.8) 0 5%, transparent 10%),
+      radial-gradient(circle at 48% 55%, rgba(120,6,6,.9) 0 8%, transparent 16%),
+      radial-gradient(circle at 83% 64%, rgba(95,3,3,.8) 0 4%, transparent 9%),
+      radial-gradient(circle at 12% 72%, rgba(105,4,4,.85) 0 6%, transparent 12%),
+      radial-gradient(circle at 60% 84%, rgba(85,2,2,.8) 0 5%, transparent 11%),
+      radial-gradient(circle at 35% 12%, rgba(100,3,3,.75) 0 2.5%, transparent 6%);
+  }
+
+  #death h1 { font-size: 40px; color: #8a1515; letter-spacing: 14px; }
+  #scoreList { display: flex; flex-direction: column; min-width: 360px; }
+  .scoreRow {
+    display: flex; justify-content: space-between; gap: 20px;
+    color: #9a8f7a; font-size: 15px; letter-spacing: 1px;
+    padding: 7px 4px; border-bottom: 1px solid #1c1a14;
+  }
+  .scoreRow span:first-child { color: #6b5a2a; width: 26px; }
+  .scoreRow .gold { color: #b99a45; }
+  #death .sub { color: #5f584a; }
+  #stats { font-size: 17px; color: #9a8f7a; letter-spacing: 2px; line-height: 2; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vignette"></div>
+<div id="bloodveil"></div>
+<div id="scarered"></div>
+<div id="gullet"></div>
+<div id="bloodsplat"></div>
+<div id="jawTop"></div>
+<div id="jawBot"></div>
+
+<div id="hud">
+  <div id="timer">0:00</div>
+  <div id="kin"></div>
+  <div id="whisper"></div>
+  <div id="battwrap">
+    <div id="battlabel">LANTERN</div>
+    <div id="battbar"><div id="battfill"></div></div>
+  </div>
+</div>
+
+<div id="title" class="screen">
+  <h1>THE SERPENT'S GARDEN</h1>
+  <p class="sub">The orchard is dark. The rows are long.<br>Something in them is hungry.</p>
+  <p class="warn">HEADPHONES REQUIRED</p>
+  <div style="display:flex; gap:16px; margin-top:10px; flex-wrap:wrap; justify-content:center;">
+    <button id="begin" class="btn">ENTER THE GARDEN</button>
+    <button id="helpBtn" class="btn" style="border-color:#3a382e; color:#8a8470;">HOW TO SURVIVE</button>
+    <button id="scoresBtn" class="btn" style="border-color:#3a382e; color:#8a8470;">THE DEVOURED</button>
+  </div>
+</div>
+
+<div id="scores" class="screen hidden">
+  <h1 style="font-size:28px; letter-spacing:6px;">THE DEVOURED</h1>
+  <p class="sub">Those who lasted longest before the garden took them back.</p>
+  <div id="scoreList"></div>
+  <button id="scoresBack" class="btn" style="font-size:14px; padding:11px 34px;">BACK</button>
+</div>
+
+<div id="help" class="screen hidden">
+  <h1 style="font-size:28px; letter-spacing:6px;">HOW TO SURVIVE</h1>
+  <p class="sub">You are the golden apple.<br>
+  For a thousand years the serpent has fed on your kind, row by row, in the dark of the orchard.<br>
+  It has already eaten everyone you ever knew. Tonight it finishes the harvest.</p>
+  <p class="sub">Gather what remains of your kin to keep your lantern burning.<br>
+  When the light dies, it will already be behind you.<br>
+  When the sound dies, it is closer than that.</p>
+  <p class="sub" style="color:#7a6a45">When it closes in, press <b>E</b> to cast a gathered kin into the dirt.<br>
+  The cobra will stop to feed. Your kin will feel it. Run anyway.</p>
+  <p class="warn">W A S D — MOVE &nbsp;&bull;&nbsp; MOUSE — LOOK &nbsp;&bull;&nbsp; E — SACRIFICE A KIN</p>
+  <button id="helpBack" class="btn" style="font-size:14px; padding:11px 34px;">BACK</button>
+</div>
+
+<div id="death" class="screen hidden">
+  <h1>DEVOURED</h1>
+  <p id="stats"></p>
+  <p class="sub">It did not kill you quickly. Your skin split like all the others,
+  and the last thing you heard was your own pulp against its teeth.<br><br>
+  The serpent is still hungry. It is always still hungry.</p>
+  <div style="display:flex; gap:16px; margin-top:10px;">
+    <button id="begin2" class="btn" style="font-size:15px;padding:12px 38px;">FEED IT AGAIN</button>
+    <button id="toTitle" class="btn" style="font-size:15px;padding:12px 38px;border-color:#3a382e;color:#8a8470;">RETURN TO TITLE</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+// ================= RENDERER / SCENE =================
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x02040a);
+scene.fog = new THREE.FogExp2(0x030509, 0.042);
+
+const camera = new THREE.PerspectiveCamera(74, innerWidth / innerHeight, 0.1, 300);
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ================= PROCEDURAL TEXTURES =================
+function canvasTex(size, fn, rx, ry) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  fn(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (rx) t.repeat.set(rx, ry || rx);
+  return t;
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+// wet soil
+const soilTex = canvasTex(512, (x, s) => {
+  x.fillStyle = '#171009'; x.fillRect(0, 0, s, s);
+  for (let i = 0; i < 9000; i++) {
+    const v = Math.random();
+    x.fillStyle = v < 0.5 ? `rgba(${rnd(8,20)|0},${rnd(6,14)|0},${rnd(3,8)|0},.6)`
+                          : `rgba(${rnd(40,70)|0},${rnd(32,52)|0},${rnd(18,30)|0},.35)`;
+    const r = rnd(0.5, 3.2);
+    x.beginPath(); x.arc(Math.random() * s, Math.random() * s, r, 0, 7); x.fill();
+  }
+  // root-like streaks
+  x.strokeStyle = 'rgba(10,7,4,.5)'; x.lineWidth = 1.2;
+  for (let i = 0; i < 60; i++) {
+    x.beginPath();
+    let px = Math.random() * s, py = Math.random() * s;
+    x.moveTo(px, py);
+    for (let j = 0; j < 6; j++) { px += rnd(-25, 25); py += rnd(-25, 25); x.lineTo(px, py); }
+    x.stroke();
+  }
+}, 14, 14);
+
+// dead bark
+const barkTex = canvasTex(256, (x, s) => {
+  x.fillStyle = '#1c130c'; x.fillRect(0, 0, s, s);
+  for (let i = 0; i < 90; i++) {
+    x.strokeStyle = `rgba(${rnd(6,16)|0},${rnd(4,10)|0},${rnd(2,6)|0},${rnd(.3,.8)})`;
+    x.lineWidth = rnd(1, 4);
+    const bx = Math.random() * s;
+    x.beginPath(); x.moveTo(bx, 0);
+    let px = bx;
+    for (let y = 0; y <= s; y += 16) { px += rnd(-5, 5); x.lineTo(px, y); }
+    x.stroke();
+  }
+  for (let i = 0; i < 25; i++) { // pale scars
+    x.strokeStyle = `rgba(${rnd(60,90)|0},${rnd(50,70)|0},${rnd(35,50)|0},.25)`;
+    x.lineWidth = 1;
+    const bx = Math.random() * s;
+    x.beginPath(); x.moveTo(bx, Math.random() * s); x.lineTo(bx + rnd(-4, 4), Math.random() * s); x.stroke();
+  }
+}, 1, 3);
+
+// serpent scales
+const scaleTex = canvasTex(256, (x, s) => {
+  x.fillStyle = '#0c1206'; x.fillRect(0, 0, s, s);
+  const sw = 22, sh = 14;
+  for (let row = -1; row < s / sh + 1; row++) {
+    for (let col = -1; col < s / sw + 1; col++) {
+      const ox = col * sw + (row % 2 ? sw / 2 : 0);
+      const oy = row * sh;
+      const g = x.createRadialGradient(ox + sw / 2, oy + sh * 0.3, 1, ox + sw / 2, oy + sh / 2, sw * 0.62);
+      const glint = Math.random() < 0.12;
+      g.addColorStop(0, glint ? '#2c3d14' : `rgb(${rnd(18,30)|0},${rnd(28,42)|0},${rnd(8,16)|0})`);
+      g.addColorStop(0.75, '#0d1306');
+      g.addColorStop(1, '#050803');
+      x.fillStyle = g;
+      x.beginPath();
+      x.moveTo(ox, oy + sh / 2);
+      x.quadraticCurveTo(ox + sw / 2, oy - sh / 2, ox + sw, oy + sh / 2);
+      x.quadraticCurveTo(ox + sw / 2, oy + sh * 1.5, ox, oy + sh / 2);
+      x.fill();
+    }
+  }
+}, 3, 2);
+
+// pale belly plates
+const bellyTex = canvasTex(256, (x, s) => {
+  x.fillStyle = '#2a2418'; x.fillRect(0, 0, s, s);
+  for (let y = 0; y < s; y += 18) {
+    const g = x.createLinearGradient(0, y, 0, y + 18);
+    g.addColorStop(0, `rgb(${rnd(52,66)|0},${rnd(46,58)|0},${rnd(32,42)|0})`);
+    g.addColorStop(0.85, '#1a1610');
+    g.addColorStop(1, '#0d0b07');
+    x.fillStyle = g;
+    x.fillRect(0, y, s, 17);
+  }
+}, 2, 4);
+
+// gold apple skin
+const goldTex = canvasTex(256, (x, s) => {
+  const g = x.createRadialGradient(s * 0.35, s * 0.3, 10, s / 2, s / 2, s * 0.7);
+  g.addColorStop(0, '#ffe9a0');
+  g.addColorStop(0.4, '#e2b544');
+  g.addColorStop(0.8, '#9c7218');
+  g.addColorStop(1, '#6e4c0d');
+  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  for (let i = 0; i < 500; i++) { // lenticels
+    x.fillStyle = `rgba(${rnd(120,180)|0},${rnd(90,130)|0},${rnd(20,50)|0},${rnd(.1,.3)})`;
+    x.beginPath(); x.arc(Math.random() * s, Math.random() * s, rnd(.5, 1.8), 0, 7); x.fill();
+  }
+});
+
+// grass tuft (alpha)
+const grassTex = (() => {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const x = c.getContext('2d');
+  for (let i = 0; i < 14; i++) {
+    x.strokeStyle = `rgba(${rnd(20,40)|0},${rnd(30,52)|0},${rnd(12,24)|0},${rnd(.5,.9)})`;
+    x.lineWidth = rnd(1, 2.4);
+    const bx = rnd(8, 56);
+    x.beginPath(); x.moveTo(bx, 64);
+    x.quadraticCurveTo(bx + rnd(-14, 14), rnd(20, 44), bx + rnd(-20, 20), rnd(0, 26));
+    x.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  return t;
+})();
+
+// glow sprite
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(64, 64, 2, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,220,130,.9)');
+  g.addColorStop(0.35, 'rgba(212,175,55,.35)');
+  g.addColorStop(1, 'rgba(212,175,55,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+})();
+
+// ================= WORLD =================
+const WORLD = 90;
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(WORLD * 2.4, WORLD * 2.4, 96, 96),
+  new THREE.MeshStandardMaterial({ map: soilTex, bumpMap: soilTex, bumpScale: 0.35, roughness: 1 })
+);
+{
+  const pos = ground.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++)
+    pos.setZ(i, Math.sin(pos.getX(i) * 0.15) * Math.cos(pos.getY(i) * 0.13) * 0.6 + Math.random() * 0.45);
+  ground.geometry.computeVertexNormals();
+}
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+
+// lighting: a starless overcast night
+const moon = new THREE.DirectionalLight(0x35415c, 0.34);
+moon.position.set(-30, 60, -20);
+scene.add(moon);
+scene.add(new THREE.HemisphereLight(0x1a2438, 0x0c0f08, 0.34));
+scene.add(new THREE.AmbientLight(0x10141f, 0.4));
+
+// sick moon disc, low on the horizon
+{
+  const m = new THREE.Mesh(
+    new THREE.CircleGeometry(9, 32),
+    new THREE.MeshBasicMaterial({ color: 0x8d97ad, transparent: true, opacity: 0.32, fog: false })
+  );
+  m.position.set(-110, 34, -160);
+  m.lookAt(0, 2, 0);
+  scene.add(m);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color: 0x5a6480, transparent: true, opacity: 0.2, fog: false
+  }));
+  halo.position.copy(m.position);
+  halo.scale.setScalar(46);
+  scene.add(halo);
+}
+
+// ---- dead orchard: trees with hanging rot ----
+const barkMat = new THREE.MeshStandardMaterial({ map: barkTex, bumpMap: barkTex, bumpScale: 0.3, roughness: 1 });
+const rotMat = new THREE.MeshStandardMaterial({ color: 0x241109, roughness: 0.9 });
+const trees = [];
+function buildTree(x, z) {
+  const h = 6.5 + Math.random() * 8;
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.62, h, 7), barkMat);
+  trunk.position.y = h / 2;
+  // gnarl the trunk
+  const tp = trunk.geometry.attributes.position;
+  for (let i = 0; i < tp.count; i++) {
+    const yy = tp.getY(i);
+    tp.setX(i, tp.getX(i) + Math.sin(yy * 1.7) * 0.12 + rnd(-0.05, 0.05));
+    tp.setZ(i, tp.getZ(i) + Math.cos(yy * 1.3) * 0.1 + rnd(-0.05, 0.05));
+  }
+  trunk.geometry.computeVertexNormals();
+  tree.add(trunk);
+  const nb = 3 + Math.floor(Math.random() * 4);
+  for (let b = 0; b < nb; b++) {
+    const bl = 2 + Math.random() * 3.8;
+    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.15, bl, 5), barkMat);
+    br.position.y = h * (0.4 + Math.random() * 0.55);
+    br.rotation.z = (0.55 + Math.random() * 1.0) * (Math.random() < 0.5 ? 1 : -1);
+    br.rotation.y = Math.random() * Math.PI * 2;
+    br.translateY(bl / 2);
+    tree.add(br);
+    // twigs
+    if (Math.random() < 0.8) {
+      const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.05, bl * 0.6, 4), barkMat);
+      tw.position.copy(br.position);
+      tw.rotation.z = br.rotation.z + rnd(-0.7, 0.7);
+      tw.rotation.y = br.rotation.y + rnd(-1, 1);
+      tw.translateY(bl * 0.3);
+      tree.add(tw);
+    }
+    // a rotten apple still hanging by a thread
+    if (Math.random() < 0.4) {
+      const a = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), rotMat);
+      const wp = new THREE.Vector3();
+      br.getWorldPosition(wp); // local since tree not yet placed
+      a.position.copy(br.position).add(new THREE.Vector3(rnd(-0.5, 0.5), -rnd(0.5, 1.1), rnd(-0.5, 0.5)));
+      a.scale.y = 0.8;
+      tree.add(a);
+    }
+  }
+  tree.position.set(x, 0, z);
+  tree.rotation.y = Math.random() * Math.PI * 2;
+  tree.rotation.x = rnd(-0.09, 0.09);
+  scene.add(tree);
+  trees.push({ x, z, r: 0.75 });
+}
+// planted in loose rows, like a real orchard gone feral
+for (let rx = -4; rx <= 4; rx++)
+  for (let rz = -4; rz <= 4; rz++) {
+    if (Math.abs(rx) < 1 && Math.abs(rz) < 1) continue;
+    const x = rx * 19 + rnd(-6, 6), z = rz * 19 + rnd(-6, 6);
+    if (Math.abs(x) < WORLD && Math.abs(z) < WORLD) buildTree(x, z);
+    if (Math.random() < 0.45) {
+      const x2 = x + rnd(-8, 8), z2 = z + rnd(-8, 8);
+      if (Math.abs(x2) < WORLD && Math.abs(z2) < WORLD && Math.hypot(x2, z2) > 10) buildTree(x2, z2);
+    }
+  }
+
+// ---- undergrowth: grass tufts ----
+const grassMat = new THREE.MeshBasicMaterial({
+  map: grassTex, transparent: true, alphaTest: 0.25, side: THREE.DoubleSide,
+  color: 0x39442a, depthWrite: false
+});
+for (let i = 0; i < 420; i++) {
+  const g = new THREE.Group();
+  for (let p = 0; p < 2; p++) {
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.9), grassMat);
+    pl.rotation.y = p * Math.PI / 2 + rnd(-0.3, 0.3);
+    pl.position.y = 0.42;
+    g.add(pl);
+  }
+  g.position.set(rnd(-WORLD, WORLD), 0, rnd(-WORLD, WORLD));
+  g.scale.setScalar(rnd(0.6, 1.5));
+  scene.add(g);
+}
+
+// ---- thorn bushes ----
+const thornMat = new THREE.MeshStandardMaterial({ color: 0x120d08, roughness: 1 });
+for (let i = 0; i < 46; i++) {
+  const bush = new THREE.Group();
+  const n = 5 + Math.floor(Math.random() * 5);
+  for (let b = 0; b < n; b++) {
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.06, rnd(0.8, 1.8), 4), thornMat);
+    st.rotation.set(rnd(-1, 1), rnd(0, 6.3), rnd(-1, 1));
+    st.position.y = 0.5;
+    bush.add(st);
+  }
+  bush.position.set(rnd(-WORLD, WORLD), 0, rnd(-WORLD, WORLD));
+  scene.add(bush);
+}
+
+// ---- the remains of your kin: split, hollowed golden apples ----
+const deadGoldMat = new THREE.MeshStandardMaterial({
+  map: goldTex, color: 0x6a5a30, roughness: 0.8, metalness: 0.2
+});
+const fleshMat = new THREE.MeshStandardMaterial({ color: 0x4a3416, roughness: 1 });
+for (let i = 0; i < 26; i++) {
+  const g = new THREE.Group();
+  const half = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10, 0, Math.PI), deadGoldMat);
+  half.rotation.x = -Math.PI / 2 + rnd(-0.4, 0.4);
+  half.position.y = 0.18;
+  g.add(half);
+  const flesh = new THREE.Mesh(new THREE.CircleGeometry(0.4, 12), fleshMat);
+  flesh.rotation.x = -Math.PI / 2 + rnd(-0.4, 0.4);
+  flesh.position.y = 0.19;
+  g.add(flesh);
+  // scattered bitten chunks
+  for (let cItr = 0; cItr < 3; cItr++) {
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(rnd(0.06, 0.14), 6, 5), Math.random() < .5 ? deadGoldMat : fleshMat);
+    ch.position.set(rnd(-0.9, 0.9), 0.07, rnd(-0.9, 0.9));
+    g.add(ch);
+  }
+  g.position.set(rnd(-WORLD, WORLD), 0, rnd(-WORLD, WORLD));
+  scene.add(g);
+}
+
+// ---- a shed skin, half-buried, far too long ----
+{
+  const skinMat = new THREE.MeshStandardMaterial({
+    map: scaleTex, color: 0x8a8878, transparent: true, opacity: 0.85, roughness: 0.95
+  });
+  let px = 40, pz = -35, ang = 0.6;
+  for (let i = 0; i < 30; i++) {
+    const r = 1.15 * (1 - i / 34);
+    const s = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.2, r), 10, 8), skinMat);
+    s.scale.set(1, 0.35, 1.3);
+    s.position.set(px, 0.12, pz);
+    scene.add(s);
+    ang += Math.sin(i * 0.55) * 0.3;
+    px += Math.cos(ang) * 1.4; pz += Math.sin(ang) * 1.4;
+  }
+}
+
+// ---- drifting ground mist ----
+const mistMat = new THREE.MeshBasicMaterial({ color: 0x0d1216, transparent: true, opacity: 0.15, depthWrite: false });
+const mists = [];
+for (let i = 0; i < 16; i++) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(30, 9), mistMat);
+  m.position.set(rnd(-WORLD, WORLD), 1.4 + Math.random() * 2, rnd(-WORLD, WORLD));
+  scene.add(m);
+  mists.push(m);
+}
+
+// ================= PLAYER =================
+const player = {
+  pos: new THREE.Vector3(0, 1.1, 0),
+  yaw: 0, pitch: 0,
+  vel: new THREE.Vector3(),
+  battery: 100, kin: 0, alive: false, time: 0
+};
+const selfGlow = new THREE.PointLight(0xd4af37, 0.85, 10);
+scene.add(selfGlow);
+const lantern = new THREE.SpotLight(0xd8c493, 5.2, 65, Math.PI / 4.8, 0.55, 1.1);
+scene.add(lantern);
+scene.add(lantern.target);
+
+// ================= LIVING KIN (pickups) =================
+const kinBodyMat = new THREE.MeshStandardMaterial({
+  map: goldTex, roughness: 0.28, metalness: 0.55,
+  emissive: 0x8a6410, emissiveIntensity: 0.55
+});
+const stemMat = new THREE.MeshStandardMaterial({ color: 0x2e2010, roughness: 1 });
+const leafMat = new THREE.MeshStandardMaterial({ color: 0x27350f, roughness: 0.9, side: THREE.DoubleSide });
+const kins = [];
+function spawnKin() {
+  const g = new THREE.Group();
+  // apple body — slightly lobed
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 16), kinBodyMat);
+  body.scale.set(1, 0.88, 1);
+  const bp = body.geometry.attributes.position;
+  for (let i = 0; i < bp.count; i++) {
+    const a = Math.atan2(bp.getZ(i), bp.getX(i));
+    const lobes = 1 + 0.045 * Math.sin(a * 5);
+    bp.setX(i, bp.getX(i) * lobes); bp.setZ(i, bp.getZ(i) * lobes);
+  }
+  body.geometry.computeVertexNormals();
+  g.add(body);
+  // dimple + stem + leaf
+  const dimple = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), stemMat);
+  dimple.position.y = 0.34; dimple.scale.y = 0.4;
+  g.add(dimple);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.035, 0.3, 6), stemMat);
+  stem.position.y = 0.47; stem.rotation.z = 0.18;
+  g.add(stem);
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), leafMat);
+  leaf.scale.set(1.6, 0.12, 0.7);
+  leaf.position.set(0.16, 0.55, 0);
+  leaf.rotation.z = -0.4;
+  g.add(leaf);
+  // halo + light
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, transparent: true, opacity: 0.75, depthWrite: false
+  }));
+  halo.scale.setScalar(2.6);
+  halo.position.y = 0.1;
+  g.add(halo);
+  const gl = new THREE.PointLight(0xd4af37, 1.1, 10);
+  gl.position.y = 0.5;
+  g.add(gl);
+  let x, z;
+  do { x = rnd(-WORLD + 6, WORLD - 6); z = rnd(-WORLD + 6, WORLD - 6); }
+  while (Math.hypot(x - player.pos.x, z - player.pos.z) < 15);
+  g.position.set(x, 0.45, z);
+  scene.add(g);
+  kins.push(g);
+}
+
+// ================= THE SERPENT =================
+const SEG = 36, SPACING = 1.5;
+const serpent = { segs: [], head: null, jaw: null, tongue: null, eyes: [], pupils: [], eyeLights: [],
+  mouth: null, state: 'lurk', stateT: 0, angle: 0, t: 0, tongueT: 0 };
+
+const scaleMat = new THREE.MeshStandardMaterial({
+  map: scaleTex, bumpMap: scaleTex, bumpScale: 0.12, roughness: 0.5, metalness: 0.15
+});
+const bellyMat = new THREE.MeshStandardMaterial({
+  map: bellyTex, bumpMap: bellyTex, bumpScale: 0.08, roughness: 0.7
+});
+const mouthMat = new THREE.MeshStandardMaterial({ color: 0x3d0505, roughness: 0.35, side: THREE.DoubleSide });
+const fangMat = new THREE.MeshStandardMaterial({ color: 0xb8ad96, roughness: 0.3 });
+
+{
+  const head = new THREE.Group();
+  // skull — long, wedge-shaped
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.5, 18, 14), scaleMat);
+  skull.scale.set(1.05, 0.72, 1.75);
+  const kp = skull.geometry.attributes.position;
+  for (let i = 0; i < kp.count; i++) { // taper toward the snout
+    const zz = kp.getZ(i);
+    if (zz > 0) { const f = 1 - (zz / 1.5) * 0.32; kp.setX(i, kp.getX(i) * f); kp.setY(i, kp.getY(i) * f); }
+  }
+  skull.geometry.computeVertexNormals();
+  head.add(skull);
+  // brow ridges — it always looks angry
+  for (const sx of [-0.58, 0.58]) {
+    const brow = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), scaleMat);
+    brow.scale.set(1.15, 0.42, 1.5);
+    brow.position.set(sx, 0.72, 0.9);
+    brow.rotation.z = sx > 0 ? -0.35 : 0.35;
+    brow.rotation.y = sx > 0 ? -0.25 : 0.25;
+    head.add(brow);
+  }
+  // upper snout / lip
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.95, 14, 10), scaleMat);
+  snout.scale.set(0.9, 0.42, 1.35);
+  snout.position.set(0, -0.22, 1.7);
+  head.add(snout);
+  // nostril pits
+  for (const sx of [-0.3, 0.3]) {
+    const n = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), mouthMat);
+    n.position.set(sx, -0.05, 2.7);
+    head.add(n);
+  }
+  // mouth interior — the red dark you will die in (tucked fully inside the skull)
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(1.0, 12, 10), mouthMat);
+  mouth.scale.set(0.72, 0.34, 1.12);
+  mouth.position.set(0, -0.36, 1.0);
+  head.add(mouth);
+  serpent.mouth = mouth;
+  // lower jaw group — hinged at the back of the skull, seated flush when closed
+  const jaw = new THREE.Group();
+  const jawMesh = new THREE.Mesh(new THREE.SphereGeometry(0.92, 14, 10), bellyMat);
+  jawMesh.scale.set(0.88, 0.3, 1.45);
+  jawMesh.position.set(0, -0.12, 1.5);
+  jaw.add(jawMesh);
+  const jawIn = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8), mouthMat);
+  jawIn.scale.set(0.75, 0.18, 1.3);
+  jawIn.position.set(0, 0.0, 1.5);
+  jaw.add(jawIn);
+  // lower fangs — rooted in the jaw rim, visible only when it opens
+  for (const [sx, sz, l] of [[-0.35, 2.5, 0.5], [0.35, 2.5, 0.5], [-0.55, 1.8, 0.32], [0.55, 1.8, 0.32]]) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.09, l, 6), fangMat);
+    f.position.set(sx, l / 2 - 0.1, sz);
+    jaw.add(f);
+  }
+  // hinge raised so the closed jaw nests inside the skull — it only emerges when it opens
+  jaw.position.set(0, -0.28, -0.1);
+  head.add(jaw);
+  serpent.jaw = jaw;
+  // closed-mouth crease — the lip line you see when the mouth is shut
+  const lip = new THREE.Mesh(
+    new THREE.TorusGeometry(0.78, 0.028, 6, 20, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0x0a0705, roughness: 0.9 })
+  );
+  lip.position.set(0, -0.42, 1.9);
+  lip.rotation.x = 1.75; // wraps the snout like a shut mouth
+  head.add(lip);
+  // upper fangs — tips tucked to the lip line, exposed only when the jaw drops
+  for (const [sx, sz, l] of [[-0.42, 2.3, 0.95], [0.42, 2.3, 0.95], [-0.62, 1.7, 0.4], [0.62, 1.7, 0.4], [-0.72, 1.1, 0.32], [0.72, 1.1, 0.32]]) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(l > 0.5 ? 0.13 : 0.08, l, 6), fangMat);
+    f.position.set(sx, -0.7 + l / 2, sz);
+    f.rotation.x = Math.PI;
+    head.add(f);
+  }
+  // eyes — lit amber with vertical slit pupils
+  for (const sx of [-0.62, 0.62]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 10),
+      new THREE.MeshBasicMaterial({ color: 0xff9d00 }));
+    eye.position.set(sx, 0.44, 1.15);
+    head.add(eye);
+    serpent.eyes.push(eye);
+    const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.34, 0.1),
+      new THREE.MeshBasicMaterial({ color: 0x000000 }));
+    pupil.position.set(sx * 1.28, 0.44, 1.32);
+    pupil.lookAt(pupil.position.x * 2, 0.44, pupil.position.z * 2);
+    head.add(pupil);
+    serpent.pupils.push(pupil);
+    const el = new THREE.PointLight(0xff5500, 1.0, 13);
+    el.position.set(sx, 0.44, 1.15);
+    head.add(el);
+    serpent.eyeLights.push(el);
+  }
+  // forked tongue
+  const tongue = new THREE.Group();
+  const tMat = new THREE.MeshStandardMaterial({ color: 0x581220, roughness: 0.4 });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.6, 6), tMat);
+  shaft.rotation.x = Math.PI / 2;
+  shaft.position.z = 0.8;
+  tongue.add(shaft);
+  for (const sx of [-1, 1]) {
+    const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.03, 0.55, 5), tMat);
+    fork.rotation.x = Math.PI / 2;
+    fork.rotation.z = sx * 0.5;
+    fork.position.set(sx * 0.12, 0, 1.75);
+    tongue.add(fork);
+  }
+  tongue.position.set(0, -0.35, 2.4);
+  tongue.scale.z = 0.01;
+  head.add(tongue);
+  serpent.tongue = tongue;
+
+  // the hood — a cobra's shield, folded flat until it flares
+  const hoodTex = canvasTex(256, (x, s) => {
+    x.fillStyle = '#131a09'; x.fillRect(0, 0, s, s);
+    for (let i = 0; i < 800; i++) {
+      x.fillStyle = `rgba(${rnd(20,40)|0},${rnd(30,52)|0},${rnd(10,20)|0},.5)`;
+      x.beginPath(); x.arc(Math.random() * s, Math.random() * s, rnd(1, 3), 0, 7); x.fill();
+    }
+    // the spectacle marking — pale rings that watch you even when it looks away
+    x.strokeStyle = '#c8b98a'; x.lineWidth = 7;
+    x.beginPath(); x.arc(s * 0.38, s * 0.42, s * 0.11, 0, 7); x.stroke();
+    x.beginPath(); x.arc(s * 0.62, s * 0.42, s * 0.11, 0, 7); x.stroke();
+    x.beginPath(); x.moveTo(s * 0.38, s * 0.31); x.quadraticCurveTo(s * 0.5, s * 0.24, s * 0.62, s * 0.31); x.stroke();
+  });
+  const hood = new THREE.Mesh(
+    new THREE.SphereGeometry(1.6, 16, 12),
+    new THREE.MeshStandardMaterial({ map: hoodTex, bumpMap: hoodTex, bumpScale: 0.1, roughness: 0.6, side: THREE.DoubleSide })
+  );
+  hood.scale.set(0.9, 1.5, 0.28);
+  hood.position.set(0, 0.35, -0.9);
+  head.add(hood);
+  serpent.hood = hood;
+
+  // face light for close-ups
+  const headLight = new THREE.PointLight(0xc09060, 0, 10);
+  headLight.position.set(0, 0.3, 2.8);
+  head.add(headLight);
+  serpent.headLight = headLight;
+
+  head.position.set(60, 1.35, 60);
+  scene.add(head);
+  serpent.head = head;
+  serpent.segs.push(head);
+  // body — thick, tapering coils
+  for (let i = 1; i < SEG; i++) {
+    const r = 1.45 * (1 - Math.pow(i / SEG, 1.4) * 0.85);
+    const s = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 11), i % 5 === 0 ? bellyMat : scaleMat);
+    s.scale.set(1, 0.92, 1.35);
+    s.position.set(60 + i * SPACING, r * 0.8, 60);
+    scene.add(s);
+    serpent.segs.push(s);
+  }
+}
+
+// ---- your own body, seen only at the end ----
+const playerApple = new THREE.Group();
+{
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 16), kinBodyMat);
+  body.scale.set(1, 0.88, 1);
+  playerApple.add(body);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.035, 0.3, 6), stemMat);
+  stem.position.y = 0.45; stem.rotation.z = 0.18;
+  playerApple.add(stem);
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), leafMat);
+  leaf.scale.set(1.6, 0.12, 0.7); leaf.position.set(0.16, 0.52, 0); leaf.rotation.z = -0.4;
+  playerApple.add(leaf);
+  const gl = new THREE.PointLight(0xd4af37, 1.4, 9);
+  gl.position.y = 0.4;
+  playerApple.add(gl);
+  playerApple.visible = false;
+  scene.add(playerApple);
+}
+// golden flesh, scattered by the bites
+const chunks = [];
+for (let i = 0; i < 6; i++) {
+  const c = new THREE.Mesh(new THREE.SphereGeometry(rnd(0.07, 0.13), 7, 6), kinBodyMat);
+  c.visible = false;
+  c.userData.v = new THREE.Vector3();
+  scene.add(c);
+  chunks.push(c);
+}
+// a cold light for the witnessing
+const witness = new THREE.PointLight(0x9fb4d8, 0, 45);
+scene.add(witness);
+const hoverPos = new THREE.Vector3(), thirdCam = new THREE.Vector3(), deathSpot = new THREE.Vector3();
+const awayDir = new THREE.Vector2();
+let biteDone = [false, false, false];
+let watchFlick = [false, false];
+
+// pose the body as a striking cobra: neck arcs up and back from the head,
+// then the trunk trails away from the camera along the ground
+function layNeck() {
+  const p0 = serpent.head.position;
+  const ax = awayDir.x, az = awayDir.y;
+  const p1x = deathSpot.x + ax * 2.6, p1y = 6.0, p1z = deathSpot.z + az * 2.6;
+  const p2x = deathSpot.x + ax * 9.5, p2y = 1.2, p2z = deathSpot.z + az * 9.5;
+  const NECK = 14;
+  for (let i = 1; i < SEG; i++) {
+    if (i <= NECK) {
+      const tt = i / NECK, u = 1 - tt;
+      serpent.segs[i].position.set(
+        u * u * p0.x + 2 * u * tt * p1x + tt * tt * p2x,
+        Math.max(0.5, u * u * p0.y + 2 * u * tt * p1y + tt * tt * p2y),
+        u * u * p0.z + 2 * u * tt * p1z + tt * tt * p2z
+      );
+    } else {
+      const j = i - NECK;
+      const perp = Math.sin(i * 0.55) * 1.3;
+      serpent.segs[i].position.set(
+        p2x + ax * j * SPACING - az * perp,
+        Math.max(0.55, 1.2 - j * 0.08),
+        p2z + az * j * SPACING + ax * perp
+      );
+    }
+  }
+}
+
+// ================= AUDIO (all procedural) =================
+let AC = null, master = null, droneG = null, heartG = null, hissG = null;
+let heartTimer = 0;
+
+function initAudio() {
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  master = AC.createGain(); master.gain.value = 0.85; master.connect(AC.destination);
+  droneG = AC.createGain(); droneG.gain.value = 0.05; droneG.connect(master);
+  for (const f of [36, 36.6, 54.2]) {
+    const o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+    const g = AC.createGain(); g.gain.value = 0.33;
+    o.connect(g); g.connect(droneG); o.start();
+  }
+  const buf = AC.createBuffer(1, AC.sampleRate * 4, AC.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  window._noiseBuf = buf;
+  const noise = AC.createBufferSource(); noise.buffer = buf; noise.loop = true;
+  const nf = AC.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 280; nf.Q.value = 0.6;
+  const ng = AC.createGain(); ng.gain.value = 0.03;
+  noise.connect(nf); nf.connect(ng); ng.connect(master); noise.start();
+  const lfo = AC.createOscillator(); lfo.frequency.value = 0.07;
+  const lg = AC.createGain(); lg.gain.value = 140;
+  lfo.connect(lg); lg.connect(nf.frequency); lfo.start();
+  const hn = AC.createBufferSource(); hn.buffer = buf; hn.loop = true;
+  const hf = AC.createBiquadFilter(); hf.type = 'highpass'; hf.frequency.value = 3400;
+  hissG = AC.createGain(); hissG.gain.value = 0;
+  hn.connect(hf); hf.connect(hissG); hissG.connect(master); hn.start();
+  heartG = AC.createGain(); heartG.gain.value = 1; heartG.connect(master);
+}
+
+function thump(strength) {
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(56, t);
+  o.frequency.exponentialRampToValueAtTime(28, t + 0.14);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(strength, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+  o.connect(g); g.connect(heartG); o.start(t); o.stop(t + 0.18);
+}
+function chime() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  for (const [f, dt] of [[523, 0], [659, 0.07]]) {
+    const o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t + dt);
+    g.gain.exponentialRampToValueAtTime(0.11, t + dt + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 1.4);
+    o.connect(g); g.connect(master); o.start(t + dt); o.stop(t + dt + 1.5);
+  }
+}
+function sting() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  for (const f of [660, 693, 992]) {
+    const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    o.frequency.linearRampToValueAtTime(f * 1.06, t + 1.1);
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.3);
+  }
+}
+function growl() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(50, t);
+  o.frequency.linearRampToValueAtTime(34, t + 1.6);
+  const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 200; f.Q.value = 3;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.36, t + 0.12);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+  const lfo = AC.createOscillator(); lfo.frequency.value = 11;
+  const lg = AC.createGain(); lg.gain.value = 0.1;
+  lfo.connect(lg); lg.connect(g.gain); lfo.start(t); lfo.stop(t + 1.8);
+  o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + 1.9);
+}
+function click() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(); o.frequency.value = 1900;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.16, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.05);
+}
+function creak() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(); o.type = 'triangle';
+  const f0 = 140 + Math.random() * 160;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.linearRampToValueAtTime(f0 * (0.6 + Math.random() * 0.3), t + 0.7);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.032, t + 0.15);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.9);
+}
+function tongueFlick() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  const n = AC.createBufferSource(); n.buffer = window._noiseBuf;
+  const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 5200; f.Q.value = 2;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.07, t + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.25);
+}
+function roar() { // the strike
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(760, t);
+  o.frequency.exponentialRampToValueAtTime(60, t + 1.1);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.6, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 1.3);
+  const ws = AC.createWaveShaper();
+  const curve = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(x * 7); }
+  ws.curve = curve;
+  o.connect(ws); ws.connect(g); g.connect(master); o.start(t); o.stop(t + 1.4);
+  const n = AC.createBufferSource(); n.buffer = window._noiseBuf;
+  const ng = AC.createGain();
+  ng.gain.setValueAtTime(0.5, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+  n.connect(ng); ng.connect(master); n.start(t); n.stop(t + 0.7);
+}
+function crunch() { // teeth meeting through you
+  if (!AC) return;
+  const t = AC.currentTime;
+  for (const dt of [0, 0.12]) {
+    const n = AC.createBufferSource(); n.buffer = window._noiseBuf;
+    n.playbackRate.value = 0.5;
+    const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.55, t + dt);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.16);
+    n.connect(f); f.connect(g); g.connect(master); n.start(t + dt); n.stop(t + dt + 0.2);
+    const o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(90, t + dt);
+    o.frequency.exponentialRampToValueAtTime(35, t + dt + 0.2);
+    const og = AC.createGain();
+    og.gain.setValueAtTime(0.5, t + dt);
+    og.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.25);
+    o.connect(og); og.connect(master); o.start(t + dt); o.stop(t + dt + 0.3);
+  }
+}
+function swallow() { // going down
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(160, t);
+  o.frequency.exponentialRampToValueAtTime(38, t + 0.9);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.35, t + 0.2);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.1);
+  // wet squelch
+  const n = AC.createBufferSource(); n.buffer = window._noiseBuf;
+  n.playbackRate.value = 0.3;
+  const f = AC.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(1400, t);
+  f.frequency.exponentialRampToValueAtTime(200, t + 0.8);
+  const ng = AC.createGain();
+  ng.gain.setValueAtTime(0.25, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+  n.connect(f); f.connect(ng); ng.connect(master); n.start(t); n.stop(t + 1);
+}
+function tear() { // skin splitting
+  if (!AC) return;
+  const t = AC.currentTime;
+  const n = AC.createBufferSource(); n.buffer = window._noiseBuf;
+  const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.5;
+  f.frequency.setValueAtTime(2600, t);
+  f.frequency.exponentialRampToValueAtTime(380, t + 0.5);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.42, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+  n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.6);
+  // fibrous crackle as it gives way
+  for (let i = 0; i < 5; i++) {
+    const dt = 0.05 + Math.random() * 0.4;
+    const c = AC.createBufferSource(); c.buffer = window._noiseBuf;
+    c.playbackRate.value = 1.6;
+    const cf = AC.createBiquadFilter(); cf.type = 'highpass'; cf.frequency.value = 2200;
+    const cg = AC.createGain();
+    cg.gain.setValueAtTime(0.22, t + dt);
+    cg.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.045);
+    c.connect(cf); cf.connect(cg); cg.connect(master); c.start(t + dt); c.stop(t + dt + 0.06);
+  }
+}
+function chewCrunch() { // pulp against its teeth
+  if (!AC) return;
+  const t = AC.currentTime;
+  // molar thud
+  const o = AC.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(85 + Math.random() * 20, t);
+  o.frequency.exponentialRampToValueAtTime(32, t + 0.18);
+  const og = AC.createGain();
+  og.gain.setValueAtTime(0.45, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+  o.connect(og); og.connect(master); o.start(t); o.stop(t + 0.25);
+  // wet mash
+  const n = AC.createBufferSource(); n.buffer = window._noiseBuf;
+  n.playbackRate.value = 0.28;
+  const f = AC.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(1300, t);
+  f.frequency.exponentialRampToValueAtTime(240, t + 0.3);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.34, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+  n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.4);
+  // splintering flecks
+  for (let i = 0; i < 3; i++) {
+    const dt = 0.02 + Math.random() * 0.12;
+    const c = AC.createBufferSource(); c.buffer = window._noiseBuf;
+    c.playbackRate.value = 1.8;
+    const cf = AC.createBiquadFilter(); cf.type = 'highpass'; cf.frequency.value = 3000;
+    const cg = AC.createGain();
+    cg.gain.setValueAtTime(0.14, t + dt);
+    cg.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.03);
+    c.connect(cf); cf.connect(cg); cg.connect(master); c.start(t + dt); c.stop(t + dt + 0.05);
+  }
+}
+function gurgle() { // the throat at work around you
+  if (!AC) return;
+  const t = AC.currentTime;
+  const n = AC.createBufferSource(); n.buffer = window._noiseBuf; n.loop = true;
+  n.playbackRate.value = 0.22;
+  const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 160; f.Q.value = 4;
+  const g = AC.createGain(); g.gain.value = 0.0001;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.2, t + 0.4);
+  g.gain.setValueAtTime(0.2, t + 2.4);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 3.4);
+  const lfo = AC.createOscillator(); lfo.frequency.value = 2.3;
+  const lg = AC.createGain(); lg.gain.value = 0.09;
+  lfo.connect(lg); lg.connect(g.gain); lfo.start(t); lfo.stop(t + 3.4);
+  n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 3.5);
+}
+function drip() { // what is left of you, dripping
+  if (!AC) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(); o.type = 'sine';
+  const f0 = 750 + Math.random() * 350;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f0 * 0.45, t + 0.09);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.09, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.15);
+}
+function slowHeart() { // your last three heartbeats
+  if (!AC) return;
+  const t = AC.currentTime;
+  [0, 0.9, 2.1].forEach((dt, i) => {
+    const o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(50, t + dt);
+    o.frequency.exponentialRampToValueAtTime(24, t + dt + 0.2);
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.5 - i * 0.13, t + dt);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.3);
+    o.connect(g); g.connect(master); o.start(t + dt); o.stop(t + dt + 0.35);
+  });
+}
+
+// ================= INPUT =================
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true);
+addEventListener('keyup', e => keys[e.code] = false);
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== canvas || !player.alive) return;
+  player.yaw -= e.movementX * 0.0022;
+  player.pitch -= e.movementY * 0.0022;
+  player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
+});
+
+// ================= UI =================
+const $ = id => document.getElementById(id);
+const whispers = [
+  'it knows where you are', 'do not look behind you', 'the light is a beacon',
+  'your kin screamed too', 'it is patient', 'run', 'the soil remembers',
+  'you shine so brightly', 'it has always been here', 'it can taste you on the air',
+  'the shed skin was longer than the road', 'nothing here dies quickly'
+];
+let whisperT = 0;
+function showWhisper(txt) {
+  const w = $('whisper');
+  w.textContent = txt;
+  w.style.color = 'rgba(150,30,30,.85)';
+  setTimeout(() => w.style.color = 'rgba(150,30,30,0)', 2600);
+}
+
+// ================= TITLE SCORE (a dirge in D minor) =================
+let musicOn = false, musicTimer = null, musicGain = null, musicStep = 0;
+function note(f, t0, dur, vol, type) {
+  const o = AC.createOscillator(); o.type = type; o.frequency.value = f;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + dur * 0.35);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(musicGain); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+let musicMode = 'title';
+function titleBar(t) {
+  const roots = [73.42, 58.27, 87.31, 55.0]; // D2 · Bb1 · F2 · A1
+  const root = roots[musicStep % 4];
+  note(root, t, 2.7, 0.2, 'sine');
+  note(root * 2, t, 2.7, 0.07, 'sine');
+  note(root * 3, t + 0.03, 2.5, 0.045, 'triangle');
+  // a stray voice wanders the scale
+  const scale = [293.66, 349.23, 392.0, 440.0, 466.16, 587.33];
+  if (Math.random() < 0.6) note(scale[Math.floor(Math.random() * scale.length)], t + rnd(0.2, 1.2), rnd(1.6, 2.5), 0.04, 'triangle');
+  // every eighth bar, a cold and distant bell
+  if (musicStep % 8 === 7) note(1108.73, t + 0.5, 3.2, 0.018, 'sine');
+  musicStep++;
+}
+function dreadBar(t) {
+  // two low semitones, circling — the oldest rhythm of being hunted
+  note(36.71, t, 1.7, 0.34, 'sine');       // D1
+  note(38.89, t + 0.8, 1.7, 0.3, 'sine');  // Eb1
+  if (Math.random() < 0.5) note(77.78, t + rnd(0, 0.7), 1.3, 0.045, 'sawtooth'); // Eb2 rasp
+  // glass shards high above, barely there, slightly out of tune with themselves
+  if (Math.random() < 0.7) {
+    const f = [1244.5, 1318.5, 1396.9][Math.floor(Math.random() * 3)];
+    const dt2 = rnd(0, 0.6);
+    note(f, t + dt2, 2.2, 0.012, 'sine');
+    note(f * 1.012, t + dt2, 2.2, 0.012, 'sine');
+  }
+}
+function devouredBar(t) {
+  const roots = [36.71, 51.91]; // D1 · Ab1 — the devil's interval, back and forth
+  const root = roots[musicStep % 2];
+  note(root, t, 3.6, 0.3, 'sine');
+  note(root * 2 * 1.006, t + 0.05, 3.4, 0.06, 'sine'); // detuned octave — wrong on purpose
+  note(root * 3.02, t + 0.1, 3.2, 0.028, 'triangle');
+  // every fourth bar, a bell landing on the minor ninth. it remembers you.
+  if (musicStep % 4 === 3) note(root * 8 * 1.0595, t + 0.8, 3.6, 0.02, 'sine');
+  musicStep++;
+}
+function musicBar() {
+  if (!musicOn) return;
+  const t = AC.currentTime;
+  if (musicMode === 'dread') dreadBar(t);
+  else if (musicMode === 'devoured') devouredBar(t);
+  else titleBar(t);
+}
+function startMusic(mode) {
+  mode = mode || 'title';
+  if (!AC) initAudio();
+  if (AC.state === 'suspended') AC.resume();
+  if (musicOn && musicMode === mode) return;
+  stopMusic();
+  musicMode = mode;
+  musicOn = true;
+  musicStep = 0;
+  if (!musicGain) { musicGain = AC.createGain(); musicGain.gain.value = 0.0001; musicGain.connect(master); }
+  const vol = mode === 'dread' ? 0.5 : mode === 'devoured' ? 0.8 : 0.7;
+  musicGain.gain.cancelScheduledValues(AC.currentTime);
+  musicGain.gain.setTargetAtTime(vol, AC.currentTime, mode === 'dread' ? 0.4 : 1.2);
+  musicTimer = setInterval(musicBar, mode === 'dread' ? 1600 : mode === 'devoured' ? 3400 : 2400);
+  musicBar();
+}
+function stopMusic() {
+  if (!musicOn) return;
+  musicOn = false;
+  clearInterval(musicTimer);
+  if (musicGain) {
+    musicGain.gain.cancelScheduledValues(AC.currentTime);
+    musicGain.gain.setValueAtTime(Math.max(0.0001, musicGain.gain.value), AC.currentTime);
+    musicGain.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + 0.8);
+  }
+}
+// browsers require a gesture before audio — first click or key wakes the dirge
+const wake = () => { if (!player.alive && scareT < 0) startMusic(); };
+document.addEventListener('pointerdown', wake, { once: true });
+document.addEventListener('keydown', wake, { once: true });
+
+// ================= THE DEVOURED (high scores) =================
+let scores = [];
+try { scores = JSON.parse(localStorage.getItem('serpentScores') || '[]'); } catch (e) {}
+function saveScore(timeS, kin) {
+  scores.push({ t: timeS, k: kin, d: new Date().toISOString().slice(0, 10) });
+  scores.sort((a, b) => b.t - a.t);
+  scores = scores.slice(0, 10);
+  try { localStorage.setItem('serpentScores', JSON.stringify(scores)); } catch (e) {}
+}
+function renderScores() {
+  const el = $('scoreList');
+  el.innerHTML = scores.length
+    ? scores.map((s, i) => {
+        const m = Math.floor(s.t / 60), ss = Math.floor(s.t % 60);
+        return `<div class="scoreRow"><span>${i + 1}.</span><span>${m}:${String(ss).padStart(2, '0')} survived</span><span class="gold">${s.k} kin</span><span>${s.d}</span></div>`;
+      }).join('')
+    : '<p class="sub">No one has lasted long enough to be remembered.</p>';
+}
+
+// ================= GAME FLOW =================
+function startGame() {
+  player.pos.set(0, 1.1, 0);
+  player.yaw = 0; player.pitch = 0;
+  player.battery = 100; player.kin = 0; player.time = 0; player.alive = true;
+  serpent.state = 'lurk'; serpent.stateT = 0; serpent.t = 0;
+  serpent.head.position.set(60, 1.35, 60);
+  serpent.head.scale.setScalar(1);
+  serpent.jaw.rotation.x = 0;
+  for (const eye of serpent.eyes) eye.visible = true;
+  for (const p of serpent.pupils) { p.visible = true; p.scale.x = 1; }
+  serpent.hood.scale.x = 0.9;
+  serpent.headLight.intensity = 0;
+  if (bait) { scene.remove(bait); bait = null; }
+  for (let i = 1; i < SEG; i++) serpent.segs[i].position.set(60 + i * SPACING, 1, 60);
+  blackoutT = 0; panicShake = 0;
+  witness.intensity = 0;
+  playerApple.visible = false;
+  for (const c of chunks) c.visible = false;
+  selfGlow.intensity = 0.85;
+  for (const k of kins) scene.remove(k);
+  kins.length = 0;
+  for (let i = 0; i < 6; i++) spawnKin();
+  $('title').classList.add('hidden');
+  $('death').classList.add('hidden');
+  $('help').classList.add('hidden');
+  $('scores').classList.add('hidden');
+  stopMusic();
+  $('hud').classList.add('on');
+  $('bloodveil').style.opacity = 0;
+  $('gullet').style.opacity = 0;
+  $('bloodsplat').style.opacity = 0;
+  $('jawTop').style.top = '-60%';
+  $('jawBot').style.bottom = '-60%';
+  canvas.requestPointerLock();
+  if (!AC) initAudio();
+  if (AC.state === 'suspended') AC.resume();
+}
+$('begin').onclick = startGame;
+$('begin2').onclick = startGame;
+$('helpBtn').onclick = () => { $('title').classList.add('hidden'); $('help').classList.remove('hidden'); };
+$('helpBack').onclick = () => { $('help').classList.add('hidden'); $('title').classList.remove('hidden'); };
+$('scoresBtn').onclick = () => { renderScores(); $('title').classList.add('hidden'); $('scores').classList.remove('hidden'); };
+$('scoresBack').onclick = () => { $('scores').classList.add('hidden'); $('title').classList.remove('hidden'); };
+$('toTitle').onclick = () => { $('death').classList.add('hidden'); $('title').classList.remove('hidden'); startMusic('title'); };
+
+let scareT = -1, scarePhase = 0, blackoutT = 0, panicShake = 0;
+let chewsDone = 0, dripsDone = 0;
+
+// ---- the sacrifice: feed it one of your kin to buy time ----
+let bait = null, baitEatT = 0;
+function dropBait() {
+  if (!player.alive || player.kin <= 0 || bait || scareT >= 0) return;
+  player.kin--;
+  bait = new THREE.Group();
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 12), kinBodyMat);
+  b.scale.set(1, 0.88, 1);
+  bait.add(b);
+  const gl = new THREE.PointLight(0xd4af37, 1.2, 8);
+  gl.position.y = 0.5;
+  bait.add(gl);
+  bait.position.set(player.pos.x, 0.45, player.pos.z);
+  scene.add(bait);
+  baitEatT = 0;
+  serpent.state = 'bait'; serpent.stateT = 0;
+  showWhisper('it accepts your offering');
+  sting();
+}
+addEventListener('keydown', e => { if (e.code === 'KeyE') dropBait(); });
+function die() {
+  player.alive = false;
+  scareT = 0; scarePhase = 0; chewsDone = 0; dripsDone = 0;
+  biteDone = [false, false, false];
+  watchFlick = [false, false];
+  // silence the living-world audio — hard cancel, the hiss has done its job
+  if (hissG) {
+    hissG.gain.cancelScheduledValues(AC.currentTime);
+    hissG.gain.setValueAtTime(Math.max(0.0001, hissG.gain.value), AC.currentTime);
+    hissG.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + 0.12);
+  }
+  if (droneG) {
+    droneG.gain.cancelScheduledValues(AC.currentTime);
+    droneG.gain.setValueAtTime(Math.max(0.0001, droneG.gain.value), AC.currentTime);
+    droneG.gain.exponentialRampToValueAtTime(0.04, AC.currentTime + 0.4);
+  }
+  roar(); growl();
+  startMusic('dread'); // the underscore of being eaten
+  document.exitPointerLock();
+}
+
+// ================= MAIN LOOP =================
+const clock = new THREE.Clock();
+const tmpV = new THREE.Vector3();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = performance.now() / 1000;
+
+  // ---------- THE DEVOURING ----------
+  if (scareT >= 0) {
+    scareT += dt;
+    const h = serpent.head;
+    // enforce silence on the proximity hiss every frame — nothing may override it
+    if (hissG && hissG.gain.value > 0.001) hissG.gain.setTargetAtTime(0.0001, AC.currentTime, 0.06);
+
+    // body trails the head only during the first-person phases;
+    // in the third-person scene the neck is posed explicitly (layNeck)
+    if (scarePhase < 3) {
+      for (let i = 1; i < SEG; i++) {
+        const prev = serpent.segs[i - 1].position, cur = serpent.segs[i].position;
+        tmpV.subVectors(cur, prev);
+        const d = tmpV.length();
+        if (d > SPACING) { tmpV.multiplyScalar((d - SPACING) / d); cur.sub(tmpV); }
+      }
+    }
+    // scattered flesh falls
+    for (const c of chunks) {
+      if (!c.visible) continue;
+      c.userData.v.y -= 9.8 * dt;
+      c.position.addScaledVector(c.userData.v, dt);
+      if (c.position.y < 0.08) { c.position.y = 0.08; c.userData.v.set(0, 0, 0); }
+    }
+
+    if (scarePhase === 0) {
+      // PHASE 0 (0–0.5s): the strike — lit, steady, unmissable
+      // clamp pitch so the head can't dive underground or float over your head
+      const cp = Math.max(-0.35, Math.min(0.45, player.pitch));
+      tmpV.set(0, 0, -2.4).applyEuler(new THREE.Euler(cp, player.yaw, 0, 'YXZ')).add(player.pos);
+      tmpV.y = Math.max(1.05, tmpV.y);
+      h.position.lerp(tmpV, Math.min(1, scareT * 12));
+      h.lookAt(camera.position);
+      serpent.jaw.rotation.x = Math.min(1.3, scareT * 9);
+      serpent.tongue.scale.z = 1;
+      serpent.headLight.intensity = 6;
+      for (const eye of serpent.eyes) eye.visible = true;
+      for (const p of serpent.pupils) p.visible = true;
+      for (const el of serpent.eyeLights) el.intensity = 9;
+      $('scarered').style.opacity = Math.min(0.55, scareT * 3) * (0.8 + 0.2 * Math.sin(t * 55));
+      camera.position.copy(player.pos);
+      camera.rotation.set(player.pitch + (Math.random() - .5) * .05, player.yaw + (Math.random() - .5) * .05, (Math.random() - .5) * .08, 'YXZ');
+      if (scareT > 0.5) { scarePhase = 1; crunch(); tear(); }
+    } else if (scarePhase === 1) {
+      // PHASE 1 (0.5–0.95s): the jaws close over your eyes
+      const p = Math.min(1, (scareT - 0.5) / 0.3);
+      $('jawTop').style.top = (-60 + p * 62) + '%';
+      $('jawBot').style.bottom = (-60 + p * 62) + '%';
+      $('scarered').style.opacity = 0.6;
+      camera.position.copy(player.pos);
+      camera.position.x += (Math.random() - 0.5) * 0.4;
+      camera.position.y += (Math.random() - 0.5) * 0.4;
+      if (scareT > 0.85) $('bloodsplat').style.opacity = 1;
+      if (scareT > 0.95) {
+        scarePhase = 2;
+        // ---- stage the witnessing: scout a camera angle with a clear line ----
+        deathSpot.set(player.pos.x, 0.45, player.pos.z);
+        playerApple.position.copy(deathSpot);
+        playerApple.scale.setScalar(1);
+        playerApple.visible = true;
+        h.scale.setScalar(1);
+        serpent.jaw.rotation.x = 0.2;
+        serpent.tongue.scale.z = 0.01;
+        serpent.hood.scale.x = 2.3; // full threat display for the show
+        if (bait) { scene.remove(bait); bait = null; }
+        let bestA = 0, bestScore = -1;
+        for (let k = 0; k < 12; k++) {
+          const a = (k / 12) * Math.PI * 2;
+          const cx = deathSpot.x + Math.cos(a) * 7.5, cz = deathSpot.z + Math.sin(a) * 7.5;
+          if (Math.abs(cx) > WORLD - 2 || Math.abs(cz) > WORLD - 2) continue;
+          let clear = 99;
+          for (const tr of trees) {
+            if (Math.hypot(tr.x - deathSpot.x, tr.z - deathSpot.z) > 14) continue;
+            // 2D distance from this tree to the camera→apple sight line
+            const vx = deathSpot.x - cx, vz = deathSpot.z - cz;
+            const wx = tr.x - cx, wz = tr.z - cz;
+            const tt = Math.max(0, Math.min(1, (wx * vx + wz * vz) / (vx * vx + vz * vz)));
+            const dd = Math.hypot(wx - vx * tt, wz - vz * tt);
+            if (dd < clear) clear = dd;
+          }
+          if (clear > bestScore) { bestScore = clear; bestA = a; }
+        }
+        thirdCam.set(deathSpot.x + Math.cos(bestA) * 7.5, 3.4, deathSpot.z + Math.sin(bestA) * 7.5);
+        // the serpent hovers on the far side of the apple, in profile to the lens
+        const awayX = (deathSpot.x - thirdCam.x) / 7.5, awayZ = (deathSpot.z - thirdCam.z) / 7.5;
+        awayDir.set(awayX, awayZ);
+        hoverPos.set(deathSpot.x + awayX * 3.0, 5.0, deathSpot.z + awayZ * 3.0);
+        h.position.copy(hoverPos);
+        layNeck();
+        witness.position.set(thirdCam.x, 5.6, thirdCam.z);
+        witness.intensity = 2.4;
+        serpent.headLight.intensity = 2.5;
+        lantern.intensity = 0;
+        $('hud').classList.remove('on');
+        $('gullet').style.opacity = 1;
+      }
+    } else if (scarePhase === 2) {
+      // PHASE 2 (0.95–1.35s): a black beat. long enough to hope.
+      if (scareT > 1.35) {
+        scarePhase = 3;
+        $('gullet').style.opacity = 0;
+        $('scarered').style.opacity = 0;
+        $('bloodsplat').style.opacity = 0;
+        $('jawTop').style.top = '-60%';
+        $('jawBot').style.bottom = '-60%';
+      }
+    } else if (scarePhase === 3) {
+      // PHASE 3 (1.35–4.7s): third person. you watch yourself be eaten.
+      camera.position.copy(thirdCam);
+      camera.lookAt(deathSpot.x, 1.6, deathSpot.z);
+      const strikes = [2.0, 2.8, 3.6];
+      let inStrike = false;
+      for (let si = 0; si < 3; si++) {
+        const ph = (scareT - strikes[si]) / 0.36;
+        if (ph >= 0 && ph <= 1) {
+          inStrike = true;
+          const dip = Math.sin(ph * Math.PI);
+          tmpV.set(deathSpot.x, 1.0, deathSpot.z);
+          h.position.copy(hoverPos).lerp(tmpV, dip);
+          serpent.jaw.rotation.x = 0.2 + dip * 1.15;
+          if (!biteDone[si] && ph > 0.5) {
+            biteDone[si] = true;
+            chewCrunch();
+            playerApple.scale.multiplyScalar(0.52);
+            $('scarered').style.opacity = 0.3;
+            for (let ci = 0; ci < 2; ci++) {
+              const c = chunks[si * 2 + ci];
+              c.visible = true;
+              c.position.set(deathSpot.x, 0.6, deathSpot.z);
+              c.userData.v.set(rnd(-2.4, 2.4), rnd(2, 4.2), rnd(-2.4, 2.4));
+            }
+            if (si === 2) { playerApple.visible = false; selfGlow.intensity = 0; }
+          }
+        }
+      }
+      if (!inStrike) {
+        h.position.lerp(hoverPos, dt * 3);
+        h.position.y = hoverPos.y + Math.sin(t * 2) * 0.15;
+        serpent.jaw.rotation.x = THREE.MathUtils.lerp(serpent.jaw.rotation.x, 0.25, dt * 5);
+        const cur = parseFloat($('scarered').style.opacity || 0);
+        $('scarered').style.opacity = Math.max(0, cur - dt * 1.2);
+      }
+      h.lookAt(deathSpot.x, inStrike ? 0.2 : 0.5, deathSpot.z);
+      layNeck();
+      if (scareT > 4.7) { scarePhase = 4; swallow(); gurgle(); creak(); }
+    } else if (scarePhase === 4) {
+      // PHASE 4 (4.7–6.4s): it rises. and slowly, slowly, it notices you.
+      camera.position.copy(thirdCam);
+      camera.lookAt(h.position.x, h.position.y * 0.85, h.position.z);
+      tmpV.set(hoverPos.x, 4.4, hoverPos.z);
+      h.position.lerp(tmpV, dt * 1.5);
+      serpent.jaw.rotation.x = THREE.MathUtils.lerp(serpent.jaw.rotation.x, 0.06, dt * 3);
+      // the slow turn — quaternion crawl toward your hiding place
+      const q0 = h.quaternion.clone();
+      h.lookAt(camera.position);
+      const q1 = h.quaternion.clone();
+      h.quaternion.copy(q0).slerp(q1, dt * 0.9);
+      layNeck();
+      for (const el of serpent.eyeLights) el.intensity = 1.5 + (scareT - 4.7) * 1.2;
+      if (scareT > 6.4) { scarePhase = 5; sting(); }
+    } else if (scarePhase === 5) {
+      // PHASE 5 (6.4–8.2s): it does not smile. it just watches you.
+      // and it tastes the air, so it will know you anywhere.
+      camera.position.copy(thirdCam);
+      camera.lookAt(h.position);
+      h.lookAt(camera.position);
+      const s2 = Math.min(1, (scareT - 6.4) / 1.2);
+      // a slow, curious tilt of the head
+      h.rotateZ(0.14 * s2);
+      layNeck();
+      serpent.jaw.rotation.x = THREE.MathUtils.lerp(serpent.jaw.rotation.x, 0.0, dt * 6);
+      for (const p of serpent.pupils) p.scale.x = 1 - s2 * 0.65;
+      for (const el of serpent.eyeLights) el.intensity = 3 + s2 * 5;
+      serpent.headLight.intensity = 2.5 + s2 * 2.5;
+      // the tongue — twice, unhurried, memorizing your scent
+      serpent.tongue.scale.z = 0.01;
+      [[6.7, 0], [7.55, 1]].forEach(([st, i]) => {
+        const ph = (scareT - st) / 0.5;
+        if (ph >= 0 && ph <= 1) {
+          serpent.tongue.scale.z = Math.max(0.01, Math.sin(ph * Math.PI));
+          serpent.tongue.position.y = -0.35 + Math.sin(t * 26) * 0.025;
+          if (!watchFlick[i]) { watchFlick[i] = true; tongueFlick(); }
+        }
+      });
+      // the camera cannot help but drift toward it
+      thirdCam.lerp(new THREE.Vector3(h.position.x, h.position.y - 0.4, h.position.z).add(
+        tmpV.subVectors(thirdCam, h.position).setLength(5.5)), dt * 0.4);
+      if (scareT > 8.2) { scarePhase = 6; $('gullet').style.opacity = 1; stopMusic(); slowHeart(); }
+    } else {
+      // PHASE 6: black. three heartbeats. then none. then, the verdict.
+      if (scareT > 10.6) {
+        scareT = -1;
+        $('scarered').style.opacity = 0;
+        $('gullet').style.opacity = 0;
+        $('bloodsplat').style.opacity = 0;
+        $('jawTop').style.top = '-60%';
+        $('jawBot').style.bottom = '-60%';
+        witness.intensity = 0;
+        serpent.headLight.intensity = 0;
+        for (const p of serpent.pupils) p.scale.x = 1;
+        playerApple.visible = false;
+        for (const c of chunks) c.visible = false;
+        const m = Math.floor(player.time / 60), s = Math.floor(player.time % 60);
+        saveScore(player.time, player.kin);
+        $('stats').innerHTML = `You lasted ${m}:${String(s).padStart(2, '0')} &nbsp;&bull;&nbsp; Kin gathered: ${player.kin}`;
+        $('death').classList.remove('hidden');
+        startMusic('devoured');
+      }
+    }
+    renderer.render(scene, camera);
+    return;
+  }
+
+  if (player.alive) {
+    player.time += dt;
+    const m = Math.floor(player.time / 60), s = Math.floor(player.time % 60);
+    $('timer').textContent = `${m}:${String(s).padStart(2, '0')}`;
+    $('kin').textContent = player.kin ? '●'.repeat(Math.min(player.kin, 20)) : '';
+
+    // ----- movement -----
+    const speed = 8.5;
+    const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const wish = new THREE.Vector3();
+    if (keys['KeyW'] || keys['ArrowUp']) wish.add(fwd);
+    if (keys['KeyS'] || keys['ArrowDown']) wish.sub(fwd);
+    if (keys['KeyA'] || keys['ArrowLeft']) wish.sub(right);
+    if (keys['KeyD'] || keys['ArrowRight']) wish.add(right);
+    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
+    player.vel.lerp(wish, 1 - Math.pow(0.0001, dt));
+    player.pos.addScaledVector(player.vel, dt);
+    player.pos.x = Math.max(-WORLD, Math.min(WORLD, player.pos.x));
+    player.pos.z = Math.max(-WORLD, Math.min(WORLD, player.pos.z));
+    for (const tr of trees) {
+      const dx = player.pos.x - tr.x, dz = player.pos.z - tr.z;
+      const dd = Math.hypot(dx, dz);
+      if (dd < tr.r + 0.5 && dd > 0.001) {
+        const push = (tr.r + 0.5 - dd);
+        player.pos.x += (dx / dd) * push;
+        player.pos.z += (dz / dd) * push;
+      }
+    }
+    const moving = player.vel.length();
+    player.pos.y = 1.1 + Math.abs(Math.sin(t * 9)) * 0.05 * Math.min(1, moving / 4);
+
+    // ----- battery -----
+    player.battery -= dt * 1.9;
+    if (player.battery < 0) player.battery = 0;
+    $('battfill').style.width = player.battery + '%';
+    $('battfill').style.background = player.battery < 25 ? 'rgba(180,60,40,.8)' : 'rgba(200,185,150,.65)';
+
+    // ----- kin pickups -----
+    for (let i = kins.length - 1; i >= 0; i--) {
+      const k = kins[i];
+      k.rotation.y += dt * 0.7;
+      k.position.y = 0.45 + Math.sin(t * 2 + i) * 0.08;
+      if (k.position.distanceTo(player.pos) < 1.5) {
+        scene.remove(k); kins.splice(i, 1);
+        player.kin++;
+        player.battery = Math.min(100, player.battery + 34);
+        chime();
+        spawnKin();
+      }
+    }
+    if (kins.length < 6 && Math.random() < 0.005) spawnKin();
+
+    // ----- THE SERPENT AI -----
+    const sp = serpent;
+    sp.stateT += dt;
+    sp.t += dt;
+    const head = sp.head;
+    const distToPlayer = head.position.distanceTo(player.pos);
+    const lit = player.battery > 0;
+    const rage = 1 + player.time / 75;
+
+    if (sp.state === 'bait') {
+      // it cannot resist an offered kin — but it eats fast. RUN.
+      if (!bait) { sp.state = 'lurk'; sp.stateT = 0; }
+      else {
+        const bd = Math.hypot(head.position.x - bait.position.x, head.position.z - bait.position.z);
+        if (bd > 2.2) {
+          moveHeadToward(bait.position.x, bait.position.z, 17, dt);
+        } else {
+          baitEatT += dt;
+          sp.jaw.rotation.x = 0.3 + Math.abs(Math.sin(baitEatT * 6)) * 0.6;
+          if (Math.floor(baitEatT * 3) !== Math.floor((baitEatT - dt) * 3)) chewCrunch();
+          bait.scale.setScalar(Math.max(0.05, 1 - baitEatT / 3.5));
+          if (baitEatT > 3.5) {
+            scene.remove(bait); bait = null;
+            sp.state = 'lurk'; sp.stateT = 0;
+            growl(); // it is not grateful
+          }
+        }
+      }
+    } else if (sp.state === 'lurk') {
+      const orbit = lit ? 26 : 14;
+      sp.angle += dt * 0.25;
+      const gx = player.pos.x + Math.cos(sp.angle) * orbit;
+      const gz = player.pos.z + Math.sin(sp.angle) * orbit;
+      moveHeadToward(gx, gz, 6 * rage, dt);
+      const lurkMax = Math.max(4, 14 - player.time / 10);
+      if (sp.stateT > lurkMax || !lit) {
+        if (lit && player.time > 20 && Math.random() < 0.4) {
+          sp.state = 'ambush'; sp.stateT = 0;
+        } else {
+          sp.state = 'hunt'; sp.stateT = 0;
+          sting(); growl();
+          showWhisper(whispers[Math.floor(Math.random() * whispers.length)]);
+        }
+      }
+    } else if (sp.state === 'ambush') {
+      const bx = player.pos.x + Math.sin(player.yaw) * 8;
+      const bz = player.pos.z + Math.cos(player.yaw) * 8;
+      moveHeadToward(bx, bz, 12 * rage, dt);
+      if (distToPlayer < 8.5 || sp.stateT > 12) {
+        sp.state = 'hunt'; sp.stateT = 0;
+        sting(); growl();
+        showWhisper('B E H I N D   Y O U');
+      }
+    } else {
+      moveHeadToward(player.pos.x, player.pos.z, (9.5 + player.kin * 0.28) * rage, dt);
+      sp.growlT = (sp.growlT || 0) - dt;
+      if (sp.growlT <= 0) { growl(); sp.growlT = 2.6 + Math.random() * 2.2; }
+      const huntLen = 6 + Math.random() * 5 + player.time / 20;
+      if (sp.stateT > huntLen && lit && distToPlayer > 12) {
+        sp.state = 'lurk'; sp.stateT = 0;
+      }
+    }
+    const stealth = sp.state === 'ambush';
+    for (const eye of sp.eyes) eye.visible = !stealth;
+    for (const p of sp.pupils) p.visible = !stealth;
+
+    // tongue flicks — you can hear it tasting the air
+    sp.tongueT -= dt;
+    if (sp.tongueT <= 0) {
+      sp.tongueT = stealth ? 1.2 + Math.random() * 1.5 : 2.5 + Math.random() * 4;
+      sp.tongue.userData.flick = 0.45;
+      if (distToPlayer < 30 && !stealth) tongueFlick();
+      if (stealth && distToPlayer < 20) tongueFlick(); // the only sound it makes
+    }
+    if (sp.tongue.userData.flick > 0) {
+      sp.tongue.userData.flick -= dt;
+      const ph = 1 - Math.abs(sp.tongue.userData.flick / 0.45 * 2 - 1);
+      sp.tongue.scale.z = Math.max(0.01, ph);
+      sp.tongue.position.y = -0.35 + Math.sin(t * 30) * 0.03;
+    } else sp.tongue.scale.z = 0.01;
+
+    // body follow chain
+    for (let i = 1; i < SEG; i++) {
+      const prev = sp.segs[i - 1].position, cur = sp.segs[i].position;
+      tmpV.subVectors(cur, prev);
+      const d = tmpV.length();
+      if (d > SPACING) {
+        tmpV.multiplyScalar((d - SPACING) / d);
+        cur.sub(tmpV);
+      }
+      cur.y = (1.45 * (1 - Math.pow(i / SEG, 1.4) * 0.85)) * 0.8
+            + Math.sin(sp.t * 6 - i * 0.7) * 0.12;
+      // orient scales along travel
+      if (i < SEG - 1) sp.segs[i].lookAt(sp.segs[i - 1].position);
+    }
+
+    sp.jaw.rotation.x = THREE.MathUtils.lerp(sp.jaw.rotation.x,
+      distToPlayer < 10 ? 0.7 : 0.04, dt * 4);
+
+    const glare = stealth ? 0 : 0.8 + 0.5 * Math.sin(t * 3) + (sp.state === 'hunt' ? 1.7 : 0);
+    for (const el of sp.eyeLights) el.intensity = glare;
+
+    // the hood flares when it means to kill
+    const flareTarget = sp.state === 'hunt' ? 2.3 : sp.state === 'bait' ? 1.8 : 0.9;
+    sp.hood.scale.x = THREE.MathUtils.lerp(sp.hood.scale.x, flareTarget, dt * 2);
+
+    if (distToPlayer < 2.7) die();
+
+    // ----- fear systems -----
+    const fear = Math.max(0, 1 - distToPlayer / 45);
+    const audioFear = stealth ? fear * 0.18 : fear;
+    heartTimer -= dt;
+    if (heartTimer <= 0) {
+      const bpm = 45 + audioFear * 135;
+      heartTimer = 60 / bpm;
+      thump(0.18 + audioFear * 0.55);
+    }
+    if (hissG) hissG.gain.setTargetAtTime(audioFear * audioFear * 0.26, AC.currentTime, 0.15);
+    if (droneG) droneG.gain.setTargetAtTime(0.05 + audioFear * 0.07, AC.currentTime, 0.4);
+    $('bloodveil').style.opacity = Math.max(0, audioFear - 0.35) * 1.5;
+    panicShake = (fear > 0.72 && !stealth) ? (fear - 0.72) * 0.12 : 0;
+    scene.fog.density = THREE.MathUtils.lerp(scene.fog.density,
+      sp.state === 'hunt' ? 0.06 : 0.042, dt * 0.6);
+
+    // ----- lantern -----
+    let intensity = lit ? 5.2 : 0.22;
+    if (blackoutT > 0) {
+      blackoutT -= dt;
+      intensity = 0.03;
+    } else if (lit && fear > 0.4 && Math.random() < 0.0028) {
+      blackoutT = 1.3 + Math.random();
+      click();
+      showWhisper('the light fears it too');
+    } else {
+      if (lit && (Math.random() < 0.02 + fear * 0.12)) intensity *= Math.random() * 0.5;
+      if (lit && player.battery < 25 && Math.random() < 0.08) intensity *= 0.25;
+    }
+    lantern.intensity = intensity;
+
+    whisperT -= dt;
+    if (whisperT <= 0) {
+      whisperT = 10 + Math.random() * 13;
+      if (Math.random() < 0.75) showWhisper(whispers[Math.floor(Math.random() * whispers.length)]);
+    }
+    if (Math.random() < dt * 0.09) creak();
+  }
+
+  // ----- camera & lights -----
+  camera.position.copy(player.pos);
+  camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+  if (player.alive) {
+    camera.position.y += Math.sin(t * 1.1) * 0.03;
+    camera.rotation.z = Math.sin(t * 0.9) * 0.004 + (Math.random() - 0.5) * panicShake;
+    camera.rotation.x += (Math.random() - 0.5) * panicShake * 0.6;
+  }
+  selfGlow.position.copy(player.pos);
+  lantern.position.copy(player.pos);
+  tmpV.set(0, 0, -1).applyEuler(camera.rotation).multiplyScalar(10).add(player.pos);
+  lantern.target.position.copy(tmpV);
+
+  for (const m of mists) {
+    m.position.x += dt * 0.4;
+    if (m.position.x > WORLD) m.position.x = -WORLD;
+    m.lookAt(camera.position);
+  }
+
+  renderer.render(scene, camera);
+}
+
+function moveHeadToward(gx, gz, spd, dt) {
+  const head = serpent.head;
+  const dx = gx - head.position.x, dz = gz - head.position.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 0.3) return;
+  const weave = Math.sin(serpent.t * 4) * 0.55;
+  const nx = dx / d, nz = dz / d;
+  head.position.x += (nx * spd + (-nz * weave) * spd * 0.35) * dt;
+  head.position.z += (nz * spd + (nx * weave) * spd * 0.35) * dt;
+  head.position.y = 1.35 + Math.sin(serpent.t * 6) * 0.1;
+  head.lookAt(head.position.x + nx, 1.15, head.position.z + nz);
+}
+
+animate();
+})();
+</script>
+</body>
+</html>
