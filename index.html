@@ -625,151 +625,496 @@ function spawnKin() {
   kins.push(g);
 }
 
-// ================= THE SERPENT =================
+// ================= THE SERPENT — Ophiophagus hannah =================
+// The king cobra. Olive-bronze above, black-seamed scales, pale forward-angled
+// chevrons, cream throat, round black pupils, and the paired occipital scutes
+// found on no other snake alive.
 const SEG = 36, SPACING = 1.5;
 const serpent = { segs: [], head: null, jaw: null, tongue: null, eyes: [], pupils: [], eyeLights: [],
   mouth: null, state: 'lurk', stateT: 0, angle: 0, t: 0, tongueT: 0 };
+const segR = [];
 
-const scaleMat = new THREE.MeshStandardMaterial({
-  map: scaleTex, bumpMap: scaleTex, bumpScale: 0.12, roughness: 0.5, metalness: 0.15
+// ---- king cobra palette ----
+const KC = {
+  olive: [70, 68, 40],      // dorsal ground colour
+  oliveDark: [44, 44, 26],  // scale edging / interstitial skin
+  chevron: [172, 160, 108], // pale banding
+  belly: [198, 186, 138],   // ventral scutes
+  labial: [188, 176, 116]   // lip scales
+};
+const kcCol = (c, j, a) => `rgba(${c[0] + rnd(-j, j) | 0},${c[1] + rnd(-j, j) | 0},${c[2] + rnd(-j, j) | 0},${a})`;
+
+// draws one smooth, glossy, black-edged scale
+function drawScale(x, px, py, w, h2, base, jitter, alpha) {
+  x.fillStyle = kcCol(base, jitter, alpha);
+  x.beginPath();
+  x.moveTo(px, py + h2 / 2);
+  x.quadraticCurveTo(px + w / 2, py - h2 / 2, px + w, py + h2 / 2);
+  x.quadraticCurveTo(px + w / 2, py + h2 * 1.4, px, py + h2 / 2);
+  x.fill();
+  x.strokeStyle = `rgba(${KC.oliveDark[0]},${KC.oliveDark[1]},${KC.oliveDark[2]},.75)`;
+  x.lineWidth = 1;
+  x.stroke();
+  // glossy keel-less highlight — king cobra scales are smooth and shine
+  x.fillStyle = 'rgba(255,250,220,.07)';
+  x.beginPath();
+  x.ellipse(px + w / 2, py + h2 * 0.15, w * 0.26, h2 * 0.18, 0, 0, 7);
+  x.fill();
+}
+
+// body texture, laid out for the swept tube: u (across) wraps the girth —
+// spine at u=0.25, belly at u=0.75 — and v (down) runs along the body,
+// so the chevrons truly cross the back and the scutes truly line the belly
+const kcBodyTex = canvasTex(512, (x, s) => {
+  const spineX = s * 0.25, bellyL = s * 0.62, bellyR = s * 0.88;
+  // dorsal ground: darkest along the spine, lightening down the flanks
+  for (let px = 0; px < s; px += 2) {
+    const d = Math.min(Math.abs(px - spineX), s - Math.abs(px - spineX)) / (s * 0.5);
+    const l = Math.min(1, d * 1.6);
+    x.fillStyle = `rgb(${52 + l * 34 | 0},${52 + l * 32 | 0},${30 + l * 22 | 0})`;
+    x.fillRect(px, 0, 2, s);
+  }
+  // chevrons: pale bands that sweep backward as they leave the spine
+  x.globalAlpha = 0.5;
+  for (let yk = -20; yk < s + 60; yk += 56) {
+    x.fillStyle = kcCol(KC.chevron, 10, 1);
+    for (let px = 0; px < s; px += 3) {
+      if (px > bellyL && px < bellyR) continue;
+      const d = Math.min(Math.abs(px - spineX), s - Math.abs(px - spineX));
+      x.fillRect(px, yk + d * 0.32, 3, 11);
+    }
+  }
+  x.globalAlpha = 1;
+  // ventral scutes — wide, pale, overlapping plates
+  x.fillStyle = kcCol(KC.belly, 5, 1);
+  x.fillRect(bellyL, 0, bellyR - bellyL, s);
+  for (let y = 0; y < s; y += 11) {
+    x.fillStyle = kcCol(KC.belly, 13, 0.95);
+    x.fillRect(bellyL, y, bellyR - bellyL, 9);
+    x.strokeStyle = 'rgba(64,58,36,.55)'; x.lineWidth = 1.4;
+    x.strokeRect(bellyL, y, bellyR - bellyL, 9);
+  }
+  // smooth glossy scales in oblique rows across the dorsum
+  const sw = 13, sh = 8;
+  for (let row = 0; row < s / sh + 1; row++)
+    for (let col = -1; col < s / sw + 1; col++) {
+      const px = (col * sw + (row % 2 ? sw / 2 : 0) + row * 2) % (s + sw) - sw / 2;
+      if (px > bellyL - sw / 2 && px < bellyR) continue;
+      drawScale(x, px, row * sh, sw, sh, KC.olive, 12, 0.3);
+    }
+}, 1, 1);
+
+// head texture: olive crown, subtle stipple, paling toward the snout
+const kcHeadTex = canvasTex(256, (x, s) => {
+  const g = x.createLinearGradient(0, 0, 0, s);
+  g.addColorStop(0, 'rgb(58,58,34)');
+  g.addColorStop(0.75, 'rgb(88,84,52)');
+  g.addColorStop(1, kcCol(KC.belly, 0, 1));
+  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  for (let i = 0; i < 900; i++) {
+    x.fillStyle = kcCol(Math.random() < 0.5 ? KC.olive : KC.oliveDark, 12, rnd(.15, .4));
+    x.beginPath(); x.arc(Math.random() * s, Math.random() * s, rnd(1, 2.6), 0, 7); x.fill();
+  }
+}, 1, 1);
+
+// hood texture — NO spectacle (that is Naja naja; the king wears chevrons).
+// olive with pale forward chevrons and dark interstitial skin that shows when spread
+const kcHoodTex = canvasTex(256, (x, s) => {
+  x.fillStyle = 'rgb(64,62,38)'; x.fillRect(0, 0, s, s);
+  // dark stretched interstitial skin, radiating from the spine
+  for (let i = 0; i < 26; i++) {
+    x.strokeStyle = `rgba(30,30,16,${rnd(.25, .5)})`;
+    x.lineWidth = rnd(2, 5);
+    x.beginPath();
+    x.moveTo(s / 2 + rnd(-14, 14), 0);
+    x.quadraticCurveTo(s / 2 + rnd(-60, 60), s * 0.5, s * Math.random(), s);
+    x.stroke();
+  }
+  // pale chevrons pointing down-hood (forward on the animal)
+  x.globalAlpha = 0.55;
+  for (let k = 0; k < 3; k++) {
+    const cy = s * (0.22 + k * 0.26);
+    x.fillStyle = kcCol(KC.chevron, 8, 1);
+    x.beginPath();
+    x.moveTo(s * 0.5, cy);
+    x.lineTo(s * 0.12, cy + s * 0.15); x.lineTo(s * 0.12, cy + s * 0.21);
+    x.lineTo(s * 0.5, cy + s * 0.06);
+    x.lineTo(s * 0.88, cy + s * 0.21); x.lineTo(s * 0.88, cy + s * 0.15);
+    x.closePath(); x.fill();
+  }
+  x.globalAlpha = 1;
+  // scale stipple
+  for (let i = 0; i < 700; i++) {
+    x.fillStyle = kcCol(KC.olive, 16, rnd(.1, .3));
+    x.beginPath(); x.arc(Math.random() * s, Math.random() * s, rnd(1, 3), 0, 7); x.fill();
+  }
+}, 1, 1);
+
+// ---- materials ----
+const kcBodyMat = new THREE.MeshStandardMaterial({
+  map: kcBodyTex, bumpMap: kcBodyTex, bumpScale: 0.07, roughness: 0.35, metalness: 0.08
 });
-const bellyMat = new THREE.MeshStandardMaterial({
-  map: bellyTex, bumpMap: bellyTex, bumpScale: 0.08, roughness: 0.7
+const kcHeadMat = new THREE.MeshStandardMaterial({
+  map: kcHeadTex, bumpMap: kcHeadTex, bumpScale: 0.04, roughness: 0.4, metalness: 0.05
 });
-const mouthMat = new THREE.MeshStandardMaterial({ color: 0x3d0505, roughness: 0.35, side: THREE.DoubleSide });
-const fangMat = new THREE.MeshStandardMaterial({ color: 0xb8ad96, roughness: 0.3 });
+const kcHoodMat = new THREE.MeshStandardMaterial({
+  map: kcHoodTex, bumpMap: kcHoodTex, bumpScale: 0.06, roughness: 0.45, side: THREE.DoubleSide
+});
+const labialMat = new THREE.MeshStandardMaterial({ color: 0xb8ac72, roughness: 0.45 });
+const chinMat = new THREE.MeshStandardMaterial({ color: 0xc2b688, roughness: 0.5 });
+const mouthMat = new THREE.MeshStandardMaterial({ color: 0x2b0708, roughness: 0.35, side: THREE.DoubleSide });
+const fangMat = new THREE.MeshStandardMaterial({ color: 0xe0d9c4, roughness: 0.25 });
+const plateBase = new THREE.MeshStandardMaterial({ color: 0x565436, roughness: 0.38, metalness: 0.05 });
 
 {
   const head = new THREE.Group();
-  // skull — long, wedge-shaped
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.5, 18, 14), scaleMat);
-  skull.scale.set(1.05, 0.72, 1.75);
-  const kp = skull.geometry.attributes.position;
-  for (let i = 0; i < kp.count; i++) { // taper toward the snout
-    const zz = kp.getZ(i);
-    if (zz > 0) { const f = 1 - (zz / 1.5) * 0.32; kp.setX(i, kp.getX(i) * f); kp.setY(i, kp.getY(i) * f); }
+
+  // ---- skull: sculpted, not inflated ----
+  // squared cross-section, flat crown, supraocular bulges, temporal muscle
+  // mass, a pinched lip line and a blunt tapering snout — the king's profile
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(1.5, 40, 30), kcHeadMat);
+  {
+    const kp = skull.geometry.attributes.position;
+    for (let i = 0; i < kp.count; i++) {
+      let px = kp.getX(i) / 1.5, py = kp.getY(i) / 1.5, pz = kp.getZ(i) / 1.5;
+      // push the round cross-section toward a superellipse — snake heads are not tubes
+      const rr = Math.hypot(px, py);
+      if (rr > 1e-4) {
+        const se = Math.pow(Math.pow(Math.abs(px), 4) + Math.pow(Math.abs(py), 4), 0.25);
+        const f = THREE.MathUtils.lerp(1, rr / Math.max(se, 1e-4), 0.55);
+        px *= f; py *= f;
+      }
+      let x = px * 1.42, y = py * 0.93, z = pz * 2.43;
+      // blunt tapering snout
+      if (z > 0.55) {
+        const q = (z - 0.55) / 1.88;
+        x *= 1 - 0.30 * Math.pow(q, 1.15);
+        y *= 1 - 0.22 * Math.pow(q, 1.3);
+      }
+      // flat crown
+      if (y > 0.33) y = 0.33 + (y - 0.33) * 0.55;
+      // supraocular bulge above each eye
+      if (y > 0) y += 0.05 * Math.exp(-Math.pow(z - 0.7, 2) / 0.09) * Math.exp(-Math.pow(Math.abs(x) - 0.5, 2) / 0.05);
+      // temporal bulge — the jaw muscles that crush skulls
+      x *= 1 + 0.13 * Math.exp(-Math.pow(z + 0.4, 2) / 0.55) * Math.exp(-Math.pow(y, 2) / 0.16);
+      // lip pinch above the labial row
+      if (y > -0.5 && y < -0.18) x *= 0.965;
+      // flatten the underside where the jaw seats
+      if (y < -0.42) y = -0.42 + (y + 0.42) * 0.45;
+      // blend the rear of the skull into the neck
+      if (z < -1.15) {
+        const q = Math.min(1, (-z - 1.15) / 1.2);
+        x = THREE.MathUtils.lerp(x, px * 0.93, q);
+        y = THREE.MathUtils.lerp(y, py * 0.93 - 0.1, q);
+      }
+      kp.setXYZ(i, x, y, z);
+    }
+    skull.geometry.computeVertexNormals();
   }
-  skull.geometry.computeVertexNormals();
   head.add(skull);
-  // brow ridges — it always looks angry
-  for (const sx of [-0.58, 0.58]) {
-    const brow = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), scaleMat);
-    brow.scale.set(1.15, 0.42, 1.5);
-    brow.position.set(sx, 0.72, 0.9);
-    brow.rotation.z = sx > 0 ? -0.35 : 0.35;
-    brow.rotation.y = sx > 0 ? -0.25 : 0.25;
-    head.add(brow);
+
+  // ---- cheek, temporal and nape scales: sampled off the sculpted surface ----
+  // every one sits exactly on the skull, oriented to its local normal
+  {
+    const sp2 = skull.geometry.attributes.position, sn = skull.geometry.attributes.normal;
+    const placedPts = [], cand = [];
+    for (let i = 0; i < sp2.count; i++) {
+      const x = sp2.getX(i), y = sp2.getY(i), z = sp2.getZ(i);
+      if (z > 1.35 || z < -1.5) continue;   // snout tip and neck excluded
+      if (sn.getY(i) > 0.75) continue;      // the crown is plated, not scaled
+      if (y < -0.34) continue;              // lips and chin have their own scales
+      let ok = true;
+      for (const q of placedPts)
+        if ((q[0] - x) ** 2 + (q[1] - y) ** 2 + (q[2] - z) ** 2 < 0.045) { ok = false; break; }
+      if (!ok) continue;
+      placedPts.push([x, y, z]);
+      cand.push(i);
+    }
+    const cheekScales = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(1, 6, 4),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.33, metalness: 0.08 }),
+      cand.length
+    );
+    const dm = new THREE.Object3D(), yh = new THREE.Vector3(0, 1, 0),
+          ov = new THREE.Vector3(), cc2 = new THREE.Color();
+    cand.forEach((vi, i2) => {
+      ov.set(sn.getX(vi), sn.getY(vi), sn.getZ(vi)).normalize();
+      dm.position.set(sp2.getX(vi) + ov.x * 0.01, sp2.getY(vi) + ov.y * 0.01, sp2.getZ(vi) + ov.z * 0.01);
+      dm.quaternion.setFromUnitVectors(yh, ov);
+      const sc = 0.1 + Math.random() * 0.035;
+      dm.scale.set(sc, 0.045, sc * 1.25);
+      dm.updateMatrix();
+      cheekScales.setMatrixAt(i2, dm.matrix);
+      const l = rnd(-0.03, 0.05);
+      cc2.setRGB(0.28 + l, 0.27 + l, 0.16 + l * 0.7);
+      cheekScales.setColorAt(i2, cc2);
+    });
+    if (cheekScales.instanceColor) cheekScales.instanceColor.needsUpdate = true;
+    head.add(cheekScales);
   }
-  // upper snout / lip
-  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.95, 14, 10), scaleMat);
-  snout.scale.set(0.9, 0.42, 1.35);
-  snout.position.set(0, -0.22, 1.7);
-  head.add(snout);
-  // nostril pits
-  for (const sx of [-0.3, 0.3]) {
-    const n = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), mouthMat);
-    n.position.set(sx, -0.05, 2.7);
-    head.add(n);
+
+  // ---- the crown: nine great shields, seated flush and tilted with the skull ----
+  function plate(px, py, pz, r, sx2, sz2, ry, rx) {
+    const m = plateBase.clone();
+    m.color.offsetHSL(rnd(-0.01, 0.01), rnd(-0.05, 0.05), rnd(-0.04, 0.03));
+    m.roughness = 0.3;
+    const p = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), m);
+    p.scale.set(sx2, 0.13, sz2);
+    p.position.set(px, py, pz);
+    p.rotation.set(rx || 0, ry || 0, 0);
+    head.add(p);
+    return p;
   }
-  // mouth interior — the red dark you will die in (tucked fully inside the skull)
+  // laid out to the actual scalation of O. hannah: rostral → internasals →
+  // prefrontals → frontal flanked by supraoculars → parietals → the paired occipitals.
+  // heights follow the sculpted crown so every shield sits seated, nearly touching.
+  plate(0, 0.06, 2.32, 0.2, 1.05, 0.75, 0, 1.2);        // rostral, wrapping the nose tip
+  plate(-0.17, 0.43, 1.88, 0.2, 1.0, 1.05, 0, -0.4);    // internasals, sloping down the snout
+  plate(0.17, 0.43, 1.88, 0.2, 1.0, 1.05, 0, -0.4);
+  plate(-0.21, 0.55, 1.44, 0.24, 1.0, 1.15, 0, -0.24);  // prefrontals
+  plate(0.21, 0.55, 1.44, 0.24, 1.0, 1.15, 0, -0.24);
+  plate(0, 0.645, 0.82, 0.28, 0.9, 1.5, 0, -0.05);      // frontal — long, narrow, central
+  const soL = plate(-0.55, 0.6, 0.74, 0.24, 1.0, 1.6, 0.15, -0.08); // supraoculars, at the crown's edge
+  const soR = plate(0.55, 0.6, 0.74, 0.24, 1.0, 1.6, -0.15, -0.08);
+  soL.rotation.z = 0.26; soR.rotation.z = -0.26;        // canted over the eyes: the frown
+  plate(-0.25, 0.655, 0.05, 0.34, 1.0, 1.3, 0.06, 0.04); // parietals — broad, meeting at the midline
+  plate(0.25, 0.655, 0.05, 0.34, 1.0, 1.3, -0.06, 0.04);
+  // the occipitals — the king cobra's signature, worn by no other snake alive.
+  // large, paired, directly behind the parietals
+  plate(-0.3, 0.64, -0.62, 0.38, 1.0, 1.25, 0.08, 0.16);
+  plate(0.3, 0.64, -0.62, 0.38, 1.0, 1.25, -0.08, 0.16);
+
+  // ---- supralabials: seven pale, domed lip scales a side, gapped by dark seams ----
+  for (const side of [-1, 1]) {
+    for (let li = 0; li < 7; li++) {
+      const zz = 2.15 - li * 0.4;
+      const xx = (0.42 + li * 0.078) * side;
+      const yy = -0.33 - Math.sin((li / 6) * Math.PI) * 0.03;
+      const m = labialMat.clone();
+      m.color.offsetHSL(0, rnd(-0.04, 0.03), rnd(-0.05, 0.04));
+      m.roughness = 0.38;
+      const lab = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), m);
+      lab.scale.set(0.35, 0.72 + li * 0.06, 1.05);
+      lab.position.set(xx, yy, zz);
+      lab.rotation.y = side * (0.15 + li * 0.055);
+      head.add(lab);
+    }
+  }
+
+  // ---- mouth interior ----
   const mouth = new THREE.Mesh(new THREE.SphereGeometry(1.0, 12, 10), mouthMat);
-  mouth.scale.set(0.72, 0.34, 1.12);
-  mouth.position.set(0, -0.36, 1.0);
+  mouth.scale.set(0.68, 0.32, 1.05);
+  mouth.position.set(0, -0.34, 1.0);
   head.add(mouth);
   serpent.mouth = mouth;
-  // lower jaw group — hinged at the back of the skull, seated flush when closed
+
+  // ---- lower jaw: cream chin with chin shields, nested when closed ----
   const jaw = new THREE.Group();
-  const jawMesh = new THREE.Mesh(new THREE.SphereGeometry(0.92, 14, 10), bellyMat);
-  jawMesh.scale.set(0.88, 0.3, 1.45);
+  const jawMesh = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), chinMat);
+  jawMesh.scale.set(0.8, 0.28, 1.42);
   jawMesh.position.set(0, -0.12, 1.5);
   jaw.add(jawMesh);
-  const jawIn = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8), mouthMat);
-  jawIn.scale.set(0.75, 0.18, 1.3);
+  const jawIn = new THREE.Mesh(new THREE.SphereGeometry(0.78, 10, 8), mouthMat);
+  jawIn.scale.set(0.68, 0.16, 1.28);
   jawIn.position.set(0, 0.0, 1.5);
   jaw.add(jawIn);
-  // lower fangs — rooted in the jaw rim, visible only when it opens
-  for (const [sx, sz, l] of [[-0.35, 2.5, 0.5], [0.35, 2.5, 0.5], [-0.55, 1.8, 0.32], [0.55, 1.8, 0.32]]) {
-    const f = new THREE.Mesh(new THREE.ConeGeometry(0.09, l, 6), fangMat);
-    f.position.set(sx, l / 2 - 0.1, sz);
+  // chin shields
+  for (const sx of [-0.13, 0.13]) {
+    const cs = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), chinMat);
+    cs.scale.set(1, 0.3, 1.6);
+    cs.position.set(sx, -0.3, 2.2);
+    jaw.add(cs);
+  }
+  // granular gular scales scattered along the underside of the chin
+  for (let gi = 0; gi < 16; gi++) {
+    const gz = 0.4 + Math.random() * 1.6;
+    const gw = 0.55 * (1 - gz / 3);
+    const gs = new THREE.Mesh(new THREE.SphereGeometry(0.075, 6, 5), chinMat.clone());
+    gs.material.color.offsetHSL(0, rnd(-0.04, 0.03), rnd(-0.05, 0.03));
+    gs.scale.set(1.1, 0.35, 1.3);
+    gs.position.set(rnd(-gw, gw), -0.32, gz);
+    jaw.add(gs);
+  }
+  // infralabials along the jaw rim
+  for (const side of [-1, 1]) {
+    for (let li = 0; li < 4; li++) {
+      const lab = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.3), labialMat);
+      lab.position.set((0.42 + li * 0.09) * side, -0.16, 1.9 - li * 0.5);
+      lab.rotation.y = side * 0.2;
+      jaw.add(lab);
+    }
+  }
+  // teeth: elapid fangs are short and fixed — two fangs, then a modest row
+  for (const [sx, sz, l] of [[-0.24, 2.35, 0.3], [0.24, 2.35, 0.3], [-0.4, 1.9, 0.16], [0.4, 1.9, 0.16], [-0.5, 1.4, 0.14], [0.5, 1.4, 0.14]]) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(l > 0.2 ? 0.05 : 0.035, l, 6), fangMat);
+    f.position.set(sx, l / 2 - 0.06, sz);
     jaw.add(f);
   }
-  // hinge raised so the closed jaw nests inside the skull — it only emerges when it opens
-  jaw.position.set(0, -0.28, -0.1);
+  jaw.position.set(0, -0.26, -0.1);
   head.add(jaw);
   serpent.jaw = jaw;
-  // closed-mouth crease — the lip line you see when the mouth is shut
-  const lip = new THREE.Mesh(
-    new THREE.TorusGeometry(0.78, 0.028, 6, 20, Math.PI),
-    new THREE.MeshStandardMaterial({ color: 0x0a0705, roughness: 0.9 })
-  );
-  lip.position.set(0, -0.42, 1.9);
-  lip.rotation.x = 1.75; // wraps the snout like a shut mouth
-  head.add(lip);
-  // upper fangs — tips tucked to the lip line, exposed only when the jaw drops
-  for (const [sx, sz, l] of [[-0.42, 2.3, 0.95], [0.42, 2.3, 0.95], [-0.62, 1.7, 0.4], [0.62, 1.7, 0.4], [-0.72, 1.1, 0.32], [0.72, 1.1, 0.32]]) {
-    const f = new THREE.Mesh(new THREE.ConeGeometry(l > 0.5 ? 0.13 : 0.08, l, 6), fangMat);
-    f.position.set(sx, -0.7 + l / 2, sz);
+
+  // upper fangs — short, fixed, honest. the venom does the work.
+  for (const [sx, sz, l] of [[-0.26, 2.15, 0.38], [0.26, 2.15, 0.38], [-0.42, 1.7, 0.2], [0.42, 1.7, 0.2], [-0.5, 1.25, 0.17], [0.5, 1.25, 0.17]]) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(l > 0.3 ? 0.06 : 0.04, l, 6), fangMat);
+    f.position.set(sx, -0.56 + l / 2 - l, sz);
     f.rotation.x = Math.PI;
     head.add(f);
   }
-  // eyes — lit amber with vertical slit pupils
-  for (const sx of [-0.62, 0.62]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 10),
-      new THREE.MeshBasicMaterial({ color: 0xff9d00 }));
-    eye.position.set(sx, 0.44, 1.15);
-    head.add(eye);
-    serpent.eyes.push(eye);
-    const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.34, 0.1),
-      new THREE.MeshBasicMaterial({ color: 0x000000 }));
-    pupil.position.set(sx * 1.28, 0.44, 1.32);
-    pupil.lookAt(pupil.position.x * 2, 0.44, pupil.position.z * 2);
-    head.add(pupil);
+
+  // ---- eyes: built like eyes — ball, striated iris, pupil, glass cornea ----
+  for (const sx of [-1, 1]) {
+    const eyeG = new THREE.Group();
+    // seated ON the head's flank, cornea proud of the surface — not buried in it
+    eyeG.position.set(sx * 0.98, 0.32, 1.05);
+    eyeG.rotation.y = sx * 0.85;  // looking out and forward, as cobra eyes do
+    eyeG.rotation.x = -0.04;
+    // the ball, dark and wet
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 12),
+      new THREE.MeshStandardMaterial({ color: 0x1c1206, roughness: 0.4 }));
+    eyeG.add(ball);
+    // iris: unique radial striations per eye, bronze fading to a dark limbal ring
+    const irisTex = canvasTex(128, (x, s) => {
+      const g = x.createRadialGradient(s / 2, s / 2, 4, s / 2, s / 2, s / 2);
+      g.addColorStop(0, '#1a0f05');
+      g.addColorStop(0.35, '#6e4a1e');
+      g.addColorStop(0.72, '#8a6428');
+      g.addColorStop(0.92, '#3a2a10');
+      g.addColorStop(1, '#191006');
+      x.fillStyle = g; x.fillRect(0, 0, s, s);
+      for (let i = 0; i < 90; i++) {
+        const a = Math.random() * Math.PI * 2;
+        x.strokeStyle = `rgba(${rnd(20, 60) | 0},${rnd(14, 40) | 0},${rnd(4, 14) | 0},${rnd(.2, .5)})`;
+        x.lineWidth = rnd(0.5, 1.6);
+        x.beginPath();
+        x.moveTo(s / 2 + Math.cos(a) * s * 0.1, s / 2 + Math.sin(a) * s * 0.1);
+        x.lineTo(s / 2 + Math.cos(a + rnd(-.08, .08)) * s * 0.46, s / 2 + Math.sin(a + rnd(-.08, .08)) * s * 0.46);
+        x.stroke();
+      }
+    });
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.165, 24),
+      new THREE.MeshStandardMaterial({ map: irisTex, roughness: 0.3 }));
+    iris.position.z = 0.165;
+    eyeG.add(iris);
+    // round black pupil — king cobras do not have slits
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.07, 18),
+      new THREE.MeshBasicMaterial({ color: 0x030302 }));
+    pupil.position.z = 0.172;
+    eyeG.add(pupil);
     serpent.pupils.push(pupil);
-    const el = new THREE.PointLight(0xff5500, 1.0, 13);
-    el.position.set(sx, 0.44, 1.15);
-    head.add(el);
+    // the cornea: a glass dome — snakes wear a fixed, clear spectacle scale
+    const cornea = new THREE.Mesh(new THREE.SphereGeometry(0.215, 16, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.18, roughness: 0.04, metalness: 0
+      }));
+    eyeG.add(cornea);
+    // corneal glint — the wet shine your lantern finds in the dark
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.034, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0xfff2cc }));
+    glint.position.set(-0.055 * sx, 0.07, 0.2);
+    eyeG.add(glint);
+    serpent.eyes.push(glint);
+    // faint amber eyeshine
+    const el = new THREE.PointLight(0xd89040, 0.8, 11);
+    eyeG.add(el);
     serpent.eyeLights.push(el);
+    // ocular ring: small pre- and postocular scales seated around the eye
+    for (let oa = 0; oa < 5; oa++) {
+      const ang = -0.6 + oa * 0.62;
+      const ring = new THREE.Mesh(new THREE.SphereGeometry(0.085, 6, 5), plateBase.clone());
+      ring.material.color.offsetHSL(0, rnd(-0.04, 0.04), rnd(-0.04, 0.02));
+      ring.scale.set(1, 0.45, 1.2);
+      ring.position.set(Math.cos(ang + Math.PI / 2) * 0.25, Math.sin(ang + Math.PI / 2) * 0.25, 0.1);
+      ring.rotation.z = ang;
+      eyeG.add(ring);
+    }
+    head.add(eyeG);
   }
-  // forked tongue
+
+  // ---- nostrils set into proper nasal plates on the snout side ----
+  for (const sx of [-0.28, 0.28]) {
+    const np = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), plateBase);
+    np.scale.set(1, 0.55, 1.1);
+    np.position.set(sx, 0.05, 2.12);
+    np.rotation.y = Math.sign(sx) * 0.5;
+    head.add(np);
+    const n = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0x0a0806 }));
+    n.position.set(sx * 1.12, 0.07, 2.2);
+    head.add(n);
+  }
+
+  // ---- tongue: blue-black, thin, forked deep ----
   const tongue = new THREE.Group();
-  const tMat = new THREE.MeshStandardMaterial({ color: 0x581220, roughness: 0.4 });
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.6, 6), tMat);
+  const tMat = new THREE.MeshStandardMaterial({ color: 0x14141e, roughness: 0.2, metalness: 0.15 });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.032, 1.7, 6), tMat);
   shaft.rotation.x = Math.PI / 2;
-  shaft.position.z = 0.8;
+  shaft.position.z = 0.85;
   tongue.add(shaft);
   for (const sx of [-1, 1]) {
-    const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.03, 0.55, 5), tMat);
+    const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.02, 0.7, 5), tMat);
     fork.rotation.x = Math.PI / 2;
-    fork.rotation.z = sx * 0.5;
-    fork.position.set(sx * 0.12, 0, 1.75);
+    fork.rotation.z = sx * 0.42;
+    fork.position.set(sx * 0.13, 0, 1.95);
     tongue.add(fork);
   }
-  tongue.position.set(0, -0.35, 2.4);
+  tongue.position.set(0, -0.34, 2.3);
   tongue.scale.z = 0.01;
   head.add(tongue);
   serpent.tongue = tongue;
 
-  // the hood — a cobra's shield, folded flat until it flares
-  const hoodTex = canvasTex(256, (x, s) => {
-    x.fillStyle = '#131a09'; x.fillRect(0, 0, s, s);
-    for (let i = 0; i < 800; i++) {
-      x.fillStyle = `rgba(${rnd(20,40)|0},${rnd(30,52)|0},${rnd(10,20)|0},.5)`;
-      x.beginPath(); x.arc(Math.random() * s, Math.random() * s, rnd(1, 3), 0, 7); x.fill();
+  // ---- the hood: long and narrow, the king's way — no spectacle ----
+  const hood = new THREE.Mesh(new THREE.SphereGeometry(1.5, 22, 16), kcHoodMat);
+  hood.scale.set(1.3, 2.0, 0.26);
+  {
+    const hp = hood.geometry.attributes.position;
+    for (let i = 0; i < hp.count; i++) {
+      const yy = hp.getY(i);
+      // taper the lower hood into the neck
+      if (yy < 0) hp.setX(i, hp.getX(i) * (1 + yy / 1.5 * 0.55));
+      // slight forward cup
+      hp.setZ(i, hp.getZ(i) + (1 - Math.abs(hp.getX(i)) / 1.5) * 0.08);
     }
-    // the spectacle marking — pale rings that watch you even when it looks away
-    x.strokeStyle = '#c8b98a'; x.lineWidth = 7;
-    x.beginPath(); x.arc(s * 0.38, s * 0.42, s * 0.11, 0, 7); x.stroke();
-    x.beginPath(); x.arc(s * 0.62, s * 0.42, s * 0.11, 0, 7); x.stroke();
-    x.beginPath(); x.moveTo(s * 0.38, s * 0.31); x.quadraticCurveTo(s * 0.5, s * 0.24, s * 0.62, s * 0.31); x.stroke();
-  });
-  const hood = new THREE.Mesh(
-    new THREE.SphereGeometry(1.6, 16, 12),
-    new THREE.MeshStandardMaterial({ map: hoodTex, bumpMap: hoodTex, bumpScale: 0.1, roughness: 0.6, side: THREE.DoubleSide })
-  );
-  hood.scale.set(0.9, 1.5, 0.28);
-  hood.position.set(0, 0.35, -0.9);
+    hood.geometry.computeVertexNormals();
+  }
+  hood.position.set(0, -0.5, -1.15);
+  hood.userData.baseX = 1.3;
   head.add(hood);
   serpent.hood = hood;
+
+  // individually placed hood scales, in rows — they stretch as the hood flares
+  {
+    const hg = new THREE.SphereGeometry(1, 6, 4);
+    const hm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 });
+    const hpts = [];
+    for (let vy = -0.82; vy <= 0.86; vy += 0.115) {
+      const rowW = Math.sqrt(Math.max(0, 1 - vy * vy));
+      for (let w = -0.88; w <= 0.88; w += 0.16) {
+        const a = w * rowW, b = vy;
+        const c2 = 1 - a * a - b * b;
+        if (c2 <= 0.02) continue;
+        hpts.push([a * 1.5, b * 1.5, -Math.sqrt(c2) * 1.5]);
+      }
+    }
+    const hoodScales = new THREE.InstancedMesh(hg, hm, hpts.length);
+    const dummy = new THREE.Object3D();
+    const cc = new THREE.Color();
+    const yhat = new THREE.Vector3(0, 1, 0), outv = new THREE.Vector3();
+    hpts.forEach((p, i2) => {
+      dummy.position.set(p[0], p[1], p[2] * 1.03);
+      outv.set(p[0], p[1], p[2]).normalize();
+      dummy.quaternion.setFromUnitVectors(yhat, outv);
+      dummy.scale.set(0.105, 0.05, 0.135);
+      dummy.updateMatrix();
+      hoodScales.setMatrixAt(i2, dummy.matrix);
+      const band = (((p[1] * 2.2 + Math.abs(p[0]) * 1.4) % 1.6) + 1.6) % 1.6 < 0.5;
+      if (band) cc.setRGB(0.58 + rnd(-0.05, 0.05), 0.53 + rnd(-0.05, 0.05), 0.36);
+      else cc.setRGB(0.22 + rnd(-0.04, 0.04), 0.22 + rnd(-0.04, 0.04), 0.13 + rnd(-0.02, 0.02));
+      hoodScales.setColorAt(i2, cc);
+    });
+    if (hoodScales.instanceColor) hoodScales.instanceColor.needsUpdate = true;
+    hood.add(hoodScales);
+  }
 
   // face light for close-ups
   const headLight = new THREE.PointLight(0xc09060, 0, 10);
@@ -781,15 +1126,197 @@ const fangMat = new THREE.MeshStandardMaterial({ color: 0xb8ad96, roughness: 0.3
   scene.add(head);
   serpent.head = head;
   serpent.segs.push(head);
-  // body — thick, tapering coils
+
+  // ---- skeleton: invisible joints; one continuous skin is swept over them ----
   for (let i = 1; i < SEG; i++) {
-    const r = 1.45 * (1 - Math.pow(i / SEG, 1.4) * 0.85);
-    const s = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 11), i % 5 === 0 ? bellyMat : scaleMat);
-    s.scale.set(1, 0.92, 1.35);
-    s.position.set(60 + i * SPACING, r * 0.8, 60);
-    scene.add(s);
+    const tt = i / SEG;
+    const bulge = Math.pow(Math.sin(Math.PI * Math.min(tt * 1.18, 1)), 0.75);
+    const tail = tt > 0.72 ? 1 - ((tt - 0.72) / 0.28) * 0.9 : 1;
+    segR[i] = 1.12 * (0.42 + 0.58 * bulge) * tail + 0.06;
+    const s = new THREE.Object3D();
+    s.position.set(60 + i * SPACING, segR[i] * 0.9, 60);
     serpent.segs.push(s);
   }
+}
+
+// ---- the skin: one unbroken body, rebuilt over the skeleton every frame ----
+// no segments, no seams — a single swept surface from hood to tail tip
+const TUBE_ST = 108, TUBE_RA = 14, TUBE_VREP = 12;
+const tubeGeo = new THREE.BufferGeometry();
+{
+  const verts = (TUBE_ST + 1) * (TUBE_RA + 1);
+  tubeGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts * 3), 3));
+  tubeGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(verts * 3), 3));
+  const uvs = new Float32Array(verts * 2);
+  let k = 0;
+  for (let i = 0; i <= TUBE_ST; i++)
+    for (let j = 0; j <= TUBE_RA; j++) {
+      uvs[k++] = j / TUBE_RA;
+      uvs[k++] = (i / TUBE_ST) * TUBE_VREP;
+    }
+  tubeGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  const idx = [];
+  for (let i = 0; i < TUBE_ST; i++)
+    for (let j = 0; j < TUBE_RA; j++) {
+      const a = i * (TUBE_RA + 1) + j, b = a + TUBE_RA + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  tubeGeo.setIndex(idx);
+}
+// beneath the scales: darker interstitial skin, glimpsed where the body bends
+const interstitialMat = kcBodyMat.clone();
+interstitialMat.color.setHex(0x7e7e6a);
+const bodyTube = new THREE.Mesh(tubeGeo, interstitialMat);
+bodyTube.frustumCulled = false;
+scene.add(bodyTube);
+
+// ---- every scale, individually: instanced dorsal scales + ventral scute plates ----
+const SC_ROW0 = 3, SC_SLOTS = 20;
+const scaleAngles = [];
+for (let k = 0; k < SC_SLOTS; k++) {
+  const th = (k / SC_SLOTS) * Math.PI * 2;
+  const deg = th * 180 / Math.PI;
+  if (deg > 213 && deg < 327) continue; // the scutes own the belly
+  scaleAngles.push(th);
+}
+const SC_AR = scaleAngles.length;
+const SC_ROWS = TUBE_ST - SC_ROW0 + 1;
+const scaleGeo = new THREE.SphereGeometry(1, 7, 5);
+const scaleMatl = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.12 });
+const bodyScales = new THREE.InstancedMesh(scaleGeo, scaleMatl, SC_ROWS * SC_AR);
+bodyScales.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+bodyScales.frustumCulled = false;
+scene.add(bodyScales);
+const scuteMatl = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.42 });
+const bellyScutes = new THREE.InstancedMesh(scaleGeo, scuteMatl, SC_ROWS);
+bellyScutes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+bellyScutes.frustumCulled = false;
+scene.add(bellyScutes);
+
+// bake each scale's colour once: olive ground darkening toward the spine,
+// pale chevrons sweeping back and down off it, cream scutes below
+{
+  const c = new THREE.Color();
+  for (let i = 0; i < SC_ROWS; i++) {
+    for (let j = 0; j < SC_AR; j++) {
+      const th = scaleAngles[j];
+      let a = Math.abs(th - Math.PI / 2);
+      if (a > Math.PI) a = 2 * Math.PI - a;
+      const band = (((i * 0.62 + a * 2.6) % 7) + 7) % 7 < 1.7;
+      if (band) {
+        c.setRGB(0.60 + rnd(-0.06, 0.06), 0.55 + rnd(-0.06, 0.06), 0.37 + rnd(-0.04, 0.04));
+      } else {
+        const flank = Math.min(1, a / 2.4);
+        c.setRGB(
+          0.20 + flank * 0.13 + rnd(-0.03, 0.03),
+          0.20 + flank * 0.12 + rnd(-0.03, 0.03),
+          0.115 + flank * 0.09 + rnd(-0.02, 0.02)
+        );
+      }
+      bodyScales.setColorAt(i * SC_AR + j, c);
+    }
+    c.setRGB(0.71 + rnd(-0.05, 0.05), 0.66 + rnd(-0.05, 0.05), 0.48 + rnd(-0.04, 0.04));
+    bellyScutes.setColorAt(i, c);
+  }
+  if (bodyScales.instanceColor) bodyScales.instanceColor.needsUpdate = true;
+  if (bellyScutes.instanceColor) bellyScutes.instanceColor.needsUpdate = true;
+}
+
+const _m4 = new THREE.Matrix4();
+const _sx = new THREE.Vector3(), _sz = new THREE.Vector3(), _so = new THREE.Vector3();
+function setScaleMatrix(mesh, idx, px, py, pz, W, H, L) {
+  _m4.set(
+    _sx.x * W, _so.x * H, _sz.x * L, px,
+    _sx.y * W, _so.y * H, _sz.y * L, py,
+    _sx.z * W, _so.z * H, _sz.z * L, pz,
+    0, 0, 0, 1
+  );
+  mesh.setMatrixAt(idx, _m4);
+}
+
+const _tp = [];
+for (let i = 0; i <= SEG; i++) _tp.push(new THREE.Vector3());
+const _up = new THREE.Vector3(0, 1, 0);
+const _tan = new THREE.Vector3(), _bin = new THREE.Vector3(), _nor = new THREE.Vector3(),
+      _pt = new THREE.Vector3(), _fwd = new THREE.Vector3(), _tv = new THREE.Vector3();
+
+function updateTube(time) {
+  // control points: from just under the hood, along the skeleton, out to a true tail tip
+  serpent.head.getWorldDirection(_fwd);
+  _tp[0].copy(serpent.head.position).addScaledVector(_fwd, -1.1);
+  _tp[0].y -= 0.15;
+  for (let i = 1; i < SEG; i++) _tp[i].copy(serpent.segs[i].position);
+  _tv.subVectors(serpent.segs[SEG - 1].position, serpent.segs[SEG - 2].position);
+  if (_tv.lengthSq() < 1e-6) _tv.set(1, 0, 0); else _tv.normalize();
+  _tp[SEG].copy(serpent.segs[SEG - 1].position).addScaledVector(_tv, 1.3);
+  _tp[SEG].y = 0.05;
+
+  const curve = new THREE.CatmullRomCurve3(_tp);
+  const pos = tubeGeo.attributes.position.array;
+  const nrm = tubeGeo.attributes.normal.array;
+  let k = 0;
+  for (let i = 0; i <= TUBE_ST; i++) {
+    const tt = i / TUBE_ST;
+    curve.getPoint(tt, _pt);
+    curve.getTangent(tt, _tan);
+    _bin.crossVectors(_tan, _up);
+    if (_bin.lengthSq() < 1e-4) _bin.set(1, 0, 0); else _bin.normalize();
+    _nor.crossVectors(_bin, _tan).normalize();
+    // radius: slim neck, deep body, whip tail — interpolated along the skeleton
+    const f = tt * SEG;
+    const i0 = Math.max(1, Math.min(SEG - 1, Math.floor(f)));
+    const i1 = Math.min(SEG - 1, i0 + 1);
+    let r = (segR[i0] + (segR[i1] - segR[i0]) * Math.max(0, Math.min(1, f - i0))) * 0.98;
+    if (tt < 0.06) r = 0.52 + (r - 0.52) * (tt / 0.06);   // blend smoothly into the skull
+    if (tt > 0.94) r = r * (1 - (tt - 0.94) / 0.06) + 0.02; // close to a point
+    r *= 1 + 0.018 * Math.sin(time * 1.6 - tt * 5);         // it breathes
+    for (let j = 0; j <= TUBE_RA; j++) {
+      const th = (j / TUBE_RA) * Math.PI * 2;
+      const cx = Math.cos(th), sy = Math.sin(th) * 0.92; // settled onto its ventral scutes
+      const dx = _bin.x * cx + _nor.x * sy;
+      const dy = _bin.y * cx + _nor.y * sy;
+      const dz = _bin.z * cx + _nor.z * sy;
+      pos[k] = _pt.x + dx * r; nrm[k++] = dx;
+      pos[k] = _pt.y + dy * r; nrm[k++] = dy;
+      pos[k] = _pt.z + dz * r; nrm[k++] = dz;
+    }
+    // ---- lay this row's scales onto the living surface ----
+    if (i >= SC_ROW0) {
+      const row = i - SC_ROW0;
+      const half = (i % 2) * (Math.PI / SC_SLOTS); // offset alternate rows: true imbrication
+      const alive2 = r < 0.1 ? 0 : 1;              // the tail tip is too fine for scales
+      const rowL = (SEG * SPACING) / TUBE_ST * 1.75;
+      for (let j = 0; j < SC_AR; j++) {
+        const th = scaleAngles[j] + half;
+        const scx = Math.cos(th), ssy = Math.sin(th) * 0.92;
+        _so.set(
+          _bin.x * scx + _nor.x * ssy,
+          _bin.y * scx + _nor.y * ssy,
+          _bin.z * scx + _nor.z * ssy
+        ).normalize();
+        // each scale leans tailward, its free edge lifted off the one behind
+        _sz.copy(_tan).addScaledVector(_so, 0.28).normalize();
+        _sx.crossVectors(_so, _sz).normalize();
+        const W = Math.max(0.02, r * 0.36) * alive2;
+        const L2 = Math.min(rowL, 0.26 + r * 0.3) * alive2;
+        const H = (0.03 + r * 0.045) * alive2;
+        setScaleMatrix(bodyScales, row * SC_AR + j,
+          _pt.x + _so.x * r * 0.97, _pt.y + _so.y * r * 0.97, _pt.z + _so.z * r * 0.97,
+          W, H, L2);
+      }
+      // the single broad ventral scute of this body ring
+      _so.copy(_nor).multiplyScalar(-1).normalize();
+      _sz.copy(_tan).addScaledVector(_so, 0.1).normalize();
+      _sx.crossVectors(_so, _sz).normalize();
+      setScaleMatrix(bellyScutes, row,
+        _pt.x + _so.x * r * 0.88, _pt.y + _so.y * r * 0.88, _pt.z + _so.z * r * 0.88,
+        Math.max(0.02, r * 0.82) * alive2, 0.045 * alive2, rowL * 0.62 * alive2);
+    }
+  }
+  tubeGeo.attributes.position.needsUpdate = true;
+  tubeGeo.attributes.normal.needsUpdate = true;
+  bodyScales.instanceMatrix.needsUpdate = true;
+  bellyScutes.instanceMatrix.needsUpdate = true;
 }
 
 // ---- your own body, seen only at the end ----
@@ -851,6 +1378,339 @@ function layNeck() {
         Math.max(0.55, 1.2 - j * 0.08),
         p2z + az * j * SPACING + ax * perp
       );
+    }
+  }
+}
+
+// ================= THE CHICKS =================
+// three chicks live in the garden. they are somehow completely fine.
+// they peck, they strut, they cheep — and now and then, all three of them
+// depart for elsewhere at a speed no chick should be capable of.
+const chicks = [];
+const flock = {
+  anchor: new THREE.Vector3(25, 0, -20),
+  boltT: rnd(12, 26), boltCd: 0,
+  bolting: false, boltPh: 0, boltDur: 0.45,
+  from: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
+  to: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
+};
+function makeChick(bodyC, headC, beakC, cheek, mottle) {
+  const g = new THREE.Group();
+  const bm = new THREE.MeshStandardMaterial({ color: bodyC, roughness: 0.95 });
+  const hm = new THREE.MeshStandardMaterial({ color: headC, roughness: 0.95 });
+
+  // body: jittered, chesty, not a smooth ball — down has no clean silhouette
+  const bodyGeo = new THREE.SphereGeometry(0.24, 16, 12);
+  {
+    const bp = bodyGeo.attributes.position;
+    for (let i = 0; i < bp.count; i++) {
+      const jx = 1 + rnd(-0.03, 0.03);
+      let x = bp.getX(i) * jx, y = bp.getY(i) * (1 + rnd(-0.03, 0.03)), z = bp.getZ(i) * (1 + rnd(-0.03, 0.03));
+      if (z > 0 && y < 0.05) { z *= 1.08; y *= 1.05; } // full breast
+      bp.setXYZ(i, x, y, z);
+    }
+    bodyGeo.computeVertexNormals();
+  }
+  const body = new THREE.Mesh(bodyGeo, bm);
+  body.scale.set(1, 0.95, 1.3);
+  body.position.y = 0.26;
+  g.add(body);
+
+  // downy tufts sampled off the body surface, lying backward like real chick down
+  {
+    const bp = bodyGeo.attributes.position, bn = bodyGeo.attributes.normal;
+    const placed = [], cand = [];
+    for (let i = 0; i < bp.count; i++) {
+      const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i);
+      if (y < -0.14) continue; // keep the underside clean
+      let ok = true;
+      for (const q of placed)
+        if ((q[0] - x) ** 2 + (q[1] - y) ** 2 + (q[2] - z) ** 2 < 0.006) { ok = false; break; }
+      if (!ok) continue;
+      placed.push([x, y, z]); cand.push(i);
+    }
+    const tufts = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(1, 5, 4),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }),
+      cand.length
+    );
+    const dm = new THREE.Object3D(), yh = new THREE.Vector3(0, 1, 0),
+          ov = new THREE.Vector3(), cc2 = new THREE.Color(), base = new THREE.Color(bodyC);
+    cand.forEach((vi, i2) => {
+      ov.set(bn.getX(vi), bn.getY(vi), bn.getZ(vi)).normalize();
+      dm.position.set(bp.getX(vi) * 1 + ov.x * 0.012, bp.getY(vi) * 0.95 + ov.y * 0.012, bp.getZ(vi) * 1.3 + ov.z * 0.012);
+      dm.position.y += 0.26;
+      dm.quaternion.setFromUnitVectors(yh, ov);
+      dm.rotateX(-0.6); // feathers lie back along the body
+      dm.scale.set(0.02, 0.075 + Math.random() * 0.03, 0.028);
+      dm.updateMatrix();
+      tufts.setMatrixAt(i2, dm.matrix);
+      cc2.copy(base).offsetHSL(rnd(-0.01, 0.01), rnd(-0.05, 0.05), rnd(-mottle, mottle));
+      tufts.setColorAt(i2, cc2);
+    });
+    if (tufts.instanceColor) tufts.instanceColor.needsUpdate = true;
+    g.add(tufts);
+  }
+
+  // tail: a small fan of down
+  for (let ti = -1; ti <= 1; ti++) {
+    const tf = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), bm);
+    tf.scale.set(0.5, 1.0, 0.55);
+    tf.position.set(ti * 0.05, 0.36 + Math.abs(ti) * -0.015, -0.3);
+    tf.rotation.x = -0.7; tf.rotation.z = ti * 0.3;
+    g.add(tf);
+  }
+
+  // wings: covert + primary tips, pivoted at the shoulder so they can throw wide
+  const wings = [];
+  for (const s of [-1, 1]) {
+    const wg = new THREE.Group();
+    wg.position.set(s * 0.19, 0.32, 0.04);
+    const covert = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), bm);
+    covert.scale.set(0.22, 0.62, 1.0);
+    covert.position.set(s * 0.03, -0.05, -0.06);
+    wg.add(covert);
+    const prim = new THREE.Mesh(new THREE.SphereGeometry(0.1, 7, 5), bm);
+    prim.scale.set(0.14, 0.42, 1.15);
+    prim.position.set(s * 0.045, -0.1, -0.17);
+    prim.rotation.x = 0.18;
+    wg.add(prim);
+    g.add(wg); wings.push(wg);
+  }
+
+  // neck + head
+  const neck = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), hm);
+  neck.scale.set(0.85, 1.2, 0.85);
+  neck.position.set(0, 0.42, 0.15);
+  g.add(neck);
+  const headG = new THREE.Group();
+  headG.position.set(0, 0.5, 0.19);
+  headG.add(new THREE.Mesh(new THREE.SphereGeometry(0.135, 12, 9), hm));
+  // beak: upper and lower mandibles
+  const bkM = new THREE.MeshStandardMaterial({ color: beakC, roughness: 0.5 });
+  const bkU = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.095, 7), bkM);
+  bkU.rotation.x = Math.PI / 2; bkU.position.set(0, 0.0, 0.17);
+  headG.add(bkU);
+  const bkL = new THREE.Mesh(new THREE.ConeGeometry(0.023, 0.06, 6), bkM);
+  bkL.rotation.x = Math.PI / 2; bkL.position.set(0, -0.022, 0.15);
+  headG.add(bkL);
+  for (const s of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0x0c0906, roughness: 0.15 }));
+    e.position.set(s * 0.085, 0.025, 0.095);
+    headG.add(e);
+    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.008, 5, 4),
+      new THREE.MeshBasicMaterial({ color: 0xfff8e8 }));
+    gl.position.set(s * 0.09, 0.038, 0.112);
+    headG.add(gl);
+    if (cheek) {
+      const cp = new THREE.Mesh(new THREE.SphereGeometry(0.055, 7, 5),
+        new THREE.MeshStandardMaterial({ color: cheek, roughness: 0.95 }));
+      cp.scale.set(0.45, 0.85, 0.95);
+      cp.position.set(s * 0.125, -0.02, 0.05);
+      headG.add(cp);
+    }
+  }
+  g.add(headG);
+
+  // legs: fluffed thigh, bare tarsus, three toes
+  const legM = new THREE.MeshStandardMaterial({ color: 0xc59050, roughness: 0.6 });
+  const legs = [];
+  for (const s of [-1, 1]) {
+    const lg2 = new THREE.Group();
+    lg2.position.set(s * 0.08, 0.18, 0.02);
+    const thigh = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), bm);
+    thigh.scale.set(0.9, 1.1, 0.9);
+    lg2.add(thigh);
+    const tarsus = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.011, 0.16, 5), legM);
+    tarsus.position.y = -0.1;
+    lg2.add(tarsus);
+    for (const ta of [-0.45, 0, 0.45]) {
+      const toe = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.006, 0.08, 4), legM);
+      toe.position.set(Math.sin(ta) * 0.035, -0.178, 0.035 + Math.cos(ta) * 0.012);
+      toe.rotation.x = Math.PI / 2 - 0.08;
+      toe.rotation.z = -ta * 0.7;
+      lg2.add(toe);
+    }
+    g.add(lg2); legs.push(lg2);
+  }
+
+  g.scale.setScalar(1.15);
+  scene.add(g);
+  return { g, headG, wings, legs, t: rnd(0, 3), target: new THREE.Vector3(), walking: false };
+}
+chicks.push(makeChick(0x1c1916, 0x26201a, 0x7a5c32, 0xd8c9a0, 0.03)); // the black one, pale-cheeked
+chicks.push(makeChick(0xcdbb90, 0xd8c8a0, 0xc98f3f, 0, 0.04));        // the buff one
+chicks.push(makeChick(0x574b3e, 0x4a3f33, 0x9a7440, 0, 0.11));        // the grey partridge one, heavily mottled
+
+// ---- the nests: fixed addresses scattered through the orchard ----
+// the flock only ever travels nest to nest. how they chose them is not known.
+const nests = [];
+{
+  const twigM = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 1 });
+  const strawM = new THREE.MeshStandardMaterial({ color: 0x8a713c, roughness: 1 });
+  const bowlM = new THREE.MeshStandardMaterial({ color: 0x2a1c10, roughness: 1 });
+  for (let ni = 0; ni < 7; ni++) {
+    let nx, nz, ok;
+    do {
+      nx = rnd(-WORLD + 12, WORLD - 12); nz = rnd(-WORLD + 12, WORLD - 12);
+      ok = Math.hypot(nx, nz) > 14;
+      for (const n2 of nests) if (Math.hypot(n2.x - nx, n2.z - nz) < 30) ok = false;
+    } while (!ok);
+    const ng = new THREE.Group();
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.24, 8, 18), twigM);
+    rim.rotation.x = Math.PI / 2;
+    rim.scale.z = 0.65;
+    rim.position.y = 0.16;
+    ng.add(rim);
+    for (let tw = 0; tw < 16; tw++) {
+      const a = Math.random() * Math.PI * 2;
+      const tg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.035, rnd(0.7, 1.3), 4),
+        Math.random() < 0.3 ? strawM : twigM
+      );
+      tg.position.set(Math.cos(a) * 0.95, 0.16 + rnd(-0.04, 0.09), Math.sin(a) * 0.95);
+      tg.rotation.set(rnd(-0.3, 0.3), -a, Math.PI / 2 + rnd(-0.35, 0.35));
+      ng.add(tg);
+    }
+    const bowl = new THREE.Mesh(new THREE.CircleGeometry(0.85, 14), bowlM);
+    bowl.rotation.x = -Math.PI / 2;
+    bowl.position.y = 0.1;
+    ng.add(bowl);
+    ng.position.set(nx, 0, nz);
+    scene.add(ng);
+    nests.push(new THREE.Vector3(nx, 0, nz));
+  }
+}
+flock.nestIdx = 0;
+flock.anchor.copy(nests[0]);
+chicks.forEach((c, i) => {
+  const a = (i / 3) * Math.PI * 2;
+  c.g.position.set(flock.anchor.x + Math.cos(a) * 0.45, 0.1, flock.anchor.z + Math.sin(a) * 0.45);
+  c.target.copy(c.g.position);
+});
+
+function cheep(frantic) {
+  if (!AC) return;
+  const d = Math.hypot(flock.anchor.x - player.pos.x, flock.anchor.z - player.pos.z);
+  const vol = Math.min(0.06, 1.6 / (8 + d)) * (frantic ? 1.6 : 1);
+  if (vol < 0.004) return;
+  const t0 = AC.currentTime;
+  const n = frantic ? 4 : 2;
+  for (let i = 0; i < n; i++) {
+    const o = AC.createOscillator(); o.type = 'sine';
+    const f = (frantic ? 3400 : 2900) + rnd(-200, 300);
+    const dt2 = i * (frantic ? 0.09 : 0.16) + rnd(0, 0.03);
+    o.frequency.setValueAtTime(f, t0 + dt2);
+    o.frequency.exponentialRampToValueAtTime(f * 0.72, t0 + dt2 + 0.07);
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t0 + dt2);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + dt2 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt2 + 0.09);
+    o.connect(g); g.connect(master); o.start(t0 + dt2); o.stop(t0 + dt2 + 0.12);
+  }
+}
+function whooshChicks() {
+  if (!AC) return;
+  const t0 = AC.currentTime;
+  const n = AC.createBufferSource(); n.buffer = window._noiseBuf;
+  const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(600, t0);
+  f.frequency.exponentialRampToValueAtTime(4200, t0 + 0.18);
+  f.frequency.exponentialRampToValueAtTime(300, t0 + 0.5);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.08);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
+  n.connect(f); f.connect(g); g.connect(master); n.start(t0); n.stop(t0 + 0.6);
+}
+
+function startBolt() {
+  flock.bolting = true; flock.boltPh = 0;
+  // choose another nest — preferring one far from the player
+  const opts = [];
+  for (let i = 0; i < nests.length; i++) if (i !== flock.nestIdx) opts.push(i);
+  const far = opts.filter(i =>
+    Math.hypot(nests[i].x - player.pos.x, nests[i].z - player.pos.z) > 18);
+  const pool = far.length ? far : opts;
+  flock.nestIdx = pool[Math.floor(Math.random() * pool.length)];
+  flock.anchor.copy(nests[flock.nestIdx]);
+  chicks.forEach((c, i) => {
+    flock.from[i].copy(c.g.position);
+    // each chick takes its own seat in the nest
+    const a = (i / 3) * Math.PI * 2 + rnd(-0.4, 0.4);
+    flock.to[i].set(flock.anchor.x + Math.cos(a) * 0.45, 0, flock.anchor.z + Math.sin(a) * 0.45);
+  });
+  whooshChicks(); cheep(true);
+}
+
+function updateChicks(dt, t) {
+  if (flock.bolting) {
+    flock.boltPh += dt / flock.boltDur;
+    const ph = Math.min(1, flock.boltPh);
+    chicks.forEach((c, i) => {
+      const e = ph * ph * (3 - 2 * ph);
+      c.g.position.lerpVectors(flock.from[i], flock.to[i], e);
+      c.g.position.y = Math.sin(ph * Math.PI) * (3 + i * 0.4);
+      c.g.lookAt(flock.to[i].x, c.g.position.y, flock.to[i].z);
+      c.wings[0].rotation.z = 1.2; c.wings[1].rotation.z = -1.2;
+      c.headG.rotation.x = -0.3;
+    });
+    if (ph >= 1) {
+      flock.bolting = false;
+      flock.boltT = rnd(12, 30);
+      flock.boltCd = 3;
+      chicks.forEach((c, i) => {
+        c.g.position.copy(flock.to[i]);
+        c.g.position.y = 0.1; // settled into the nest bowl
+        c.wings[0].rotation.z = 0; c.wings[1].rotation.z = 0;
+        c.target.copy(c.g.position);
+      });
+      cheep(false);
+    }
+    return;
+  }
+  flock.boltT -= dt;
+  flock.boltCd -= dt;
+  // panic: the serpent, or you, gets too close — or it is simply time
+  const near = Math.min(
+    serpent.head.position.distanceTo(flock.anchor),
+    Math.hypot(player.pos.x - flock.anchor.x, player.pos.z - flock.anchor.z)
+  );
+  if (flock.boltT <= 0 || (near < 9 && flock.boltCd <= 0)) { startBolt(); return; }
+
+  for (let i = 0; i < 3; i++) {
+    const c = chicks[i];
+    c.t -= dt;
+    if (c.t <= 0) {
+      c.t = rnd(1.5, 4.5);
+      if (Math.random() < 0.55) {
+        c.walking = true;
+        c.target.set(flock.anchor.x + rnd(-2.4, 2.4), 0, flock.anchor.z + rnd(-2.4, 2.4));
+      } else {
+        c.walking = false;
+        if (Math.random() < 0.35) cheep(false);
+      }
+    }
+    if (c.walking) {
+      _tv.subVectors(c.target, c.g.position); _tv.y = 0;
+      if (_tv.length() < 0.15) c.walking = false;
+      else {
+        _tv.normalize();
+        c.g.position.addScaledVector(_tv, dt * 1.15);
+        c.g.lookAt(c.g.position.x + _tv.x, 0, c.g.position.z + _tv.z);
+        c.legs[0].rotation.x = Math.sin(t * 13 + i) * 0.55;
+        c.legs[1].rotation.x = -Math.sin(t * 13 + i) * 0.55;
+        c.headG.rotation.x = THREE.MathUtils.lerp(c.headG.rotation.x, 0, dt * 8);
+        c.g.position.y = Math.abs(Math.sin(t * 13 + i)) * 0.02;
+      }
+    }
+    if (!c.walking) {
+      // peck, peck, look up. repeat until the end of the world.
+      const cyc = (t * 0.9 + i * 1.7) % 3;
+      const down = cyc < 1 ? Math.max(0, Math.sin(cyc * Math.PI * 3)) : 0;
+      c.headG.rotation.x = THREE.MathUtils.lerp(c.headG.rotation.x, down * 1.05, dt * 12);
+      c.legs[0].rotation.x = c.legs[1].rotation.x = 0;
     }
   }
 }
@@ -1336,11 +2196,11 @@ function startGame() {
   serpent.head.scale.setScalar(1);
   serpent.jaw.rotation.x = 0;
   for (const eye of serpent.eyes) eye.visible = true;
-  for (const p of serpent.pupils) { p.visible = true; p.scale.x = 1; }
-  serpent.hood.scale.x = 0.9;
+  for (const p of serpent.pupils) { p.visible = true; p.scale.setScalar(1); }
+  serpent.hood.scale.x = serpent.hood.userData.baseX * 0.48;
   serpent.headLight.intensity = 0;
   if (bait) { scene.remove(bait); bait = null; }
-  for (let i = 1; i < SEG; i++) serpent.segs[i].position.set(60 + i * SPACING, 1, 60);
+  for (let i = 1; i < SEG; i++) serpent.segs[i].position.set(60 + i * SPACING, segR[i] * 0.9, 60);
   blackoutT = 0; panicShake = 0;
   witness.intensity = 0;
   playerApple.visible = false;
@@ -1455,6 +2315,9 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = performance.now() / 1000;
 
+  // the chicks do not care what is happening to you
+  updateChicks(dt, t);
+
   // ---------- THE DEVOURING ----------
   if (scareT >= 0) {
     scareT += dt;
@@ -1518,7 +2381,7 @@ function animate() {
         h.scale.setScalar(1);
         serpent.jaw.rotation.x = 0.2;
         serpent.tongue.scale.z = 0.01;
-        serpent.hood.scale.x = 2.3; // full threat display for the show
+        serpent.hood.scale.x = serpent.hood.userData.baseX * 1.05; // full threat display for the show
         if (bait) { scene.remove(bait); bait = null; }
         let bestA = 0, bestScore = -1;
         for (let k = 0; k < 12; k++) {
@@ -1626,7 +2489,7 @@ function animate() {
       h.rotateZ(0.14 * s2);
       layNeck();
       serpent.jaw.rotation.x = THREE.MathUtils.lerp(serpent.jaw.rotation.x, 0.0, dt * 6);
-      for (const p of serpent.pupils) p.scale.x = 1 - s2 * 0.65;
+      for (const p of serpent.pupils) p.scale.setScalar(1 - s2 * 0.45); // pupils constrict, fixing on you
       for (const el of serpent.eyeLights) el.intensity = 3 + s2 * 5;
       serpent.headLight.intensity = 2.5 + s2 * 2.5;
       // the tongue — twice, unhurried, memorizing your scent
@@ -1654,7 +2517,7 @@ function animate() {
         $('jawBot').style.bottom = '-60%';
         witness.intensity = 0;
         serpent.headLight.intensity = 0;
-        for (const p of serpent.pupils) p.scale.x = 1;
+        for (const p of serpent.pupils) p.scale.setScalar(1);
         playerApple.visible = false;
         for (const c of chunks) c.visible = false;
         const m = Math.floor(player.time / 60), s = Math.floor(player.time % 60);
@@ -1664,6 +2527,7 @@ function animate() {
         startMusic('devoured');
       }
     }
+    updateTube(t);
     renderer.render(scene, camera);
     return;
   }
@@ -1696,6 +2560,18 @@ function animate() {
       const dd = Math.hypot(dx, dz);
       if (dd < tr.r + 0.5 && dd > 0.001) {
         const push = (tr.r + 0.5 - dd);
+        player.pos.x += (dx / dd) * push;
+        player.pos.z += (dz / dd) * push;
+      }
+    }
+    // the body is solid — you cannot phase through five meters of muscle
+    for (let bi = 3; bi < SEG; bi++) {
+      const bp = serpent.segs[bi].position;
+      const dx = player.pos.x - bp.x, dz = player.pos.z - bp.z;
+      const rr2 = segR[bi] * 1.05 + 0.45;
+      const dd = Math.hypot(dx, dz);
+      if (dd < rr2 && dd > 0.001) {
+        const push = rr2 - dd;
         player.pos.x += (dx / dd) * push;
         player.pos.z += (dz / dd) * push;
       }
@@ -1814,8 +2690,7 @@ function animate() {
         tmpV.multiplyScalar((d - SPACING) / d);
         cur.sub(tmpV);
       }
-      cur.y = (1.45 * (1 - Math.pow(i / SEG, 1.4) * 0.85)) * 0.8
-            + Math.sin(sp.t * 6 - i * 0.7) * 0.12;
+      cur.y = segR[i] * 0.9 + Math.sin(sp.t * 6 - i * 0.7) * 0.12;
       // orient scales along travel
       if (i < SEG - 1) sp.segs[i].lookAt(sp.segs[i - 1].position);
     }
@@ -1826,8 +2701,9 @@ function animate() {
     const glare = stealth ? 0 : 0.8 + 0.5 * Math.sin(t * 3) + (sp.state === 'hunt' ? 1.7 : 0);
     for (const el of sp.eyeLights) el.intensity = glare;
 
-    // the hood flares when it means to kill
-    const flareTarget = sp.state === 'hunt' ? 2.3 : sp.state === 'bait' ? 1.8 : 0.9;
+    // the hood flares when it means to kill — long and narrow, the king's way
+    const flareTarget = sp.hood.userData.baseX *
+      (sp.state === 'hunt' ? 1.05 : sp.state === 'bait' ? 0.85 : 0.48);
     sp.hood.scale.x = THREE.MathUtils.lerp(sp.hood.scale.x, flareTarget, dt * 2);
 
     if (distToPlayer < 2.7) die();
@@ -1890,6 +2766,7 @@ function animate() {
     m.lookAt(camera.position);
   }
 
+  updateTube(t);
   renderer.render(scene, camera);
 }
 
