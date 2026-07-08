@@ -181,6 +181,9 @@
     <button id="modeTouch" class="btn modebtn" style="font-size:13px;padding:11px 26px;">MOBILE — TOUCH</button>
   </div>
   <p class="sub" id="modeDesc" style="font-size:13px;"></p>
+  <p class="sub" style="margin-top:6px;">Play as</p>
+  <div id="fruitRow" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:560px;"></div>
+  <p class="sub" id="fruitDesc" style="font-size:13px;"></p>
   <button id="settingsBack" class="btn" style="font-size:14px; padding:11px 34px;">BACK</button>
 </div>
 
@@ -193,7 +196,7 @@
 
 <div id="help" class="screen hidden">
   <h1 style="font-size:28px; letter-spacing:6px;">HOW TO SURVIVE</h1>
-  <p class="sub">You are the golden apple.<br>
+  <p class="sub">You are the fruit of the garden — apple, pear, peach, plum, orange; choose in Settings.<br>
   For a thousand years the serpent has fed on your kind, row by row, in the dark of the orchard.<br>
   It has already eaten everyone you ever knew. Tonight it finishes the harvest.</p>
   <p class="sub">Gather what remains of your kin to keep your lantern burning.<br>
@@ -581,40 +584,149 @@ const kinBodyMat = new THREE.MeshStandardMaterial({
 });
 const stemMat = new THREE.MeshStandardMaterial({ color: 0x2e2010, roughness: 1 });
 const leafMat = new THREE.MeshStandardMaterial({ color: 0x27350f, roughness: 0.9, side: THREE.DoubleSide });
+// ================= THE FRUIT OF THE GARDEN =================
+const FRUITS = {
+  golden: { name: 'GOLDEN APPLE', shape: 'apple', c1: '#fff6c8', c2: '#e6c34a', c3: '#8a6512', glow: 0xe8c84e, rough: 0.22, metal: 0.75 },
+  green:  { name: 'GREEN APPLE',  shape: 'apple', c1: '#e2f0a0', c2: '#8db83a', c3: '#42660f', glow: 0x8fbe3f, rough: 0.3,  metal: 0.15 },
+  red:    { name: 'RED APPLE',    shape: 'apple', c1: '#ffb090', c2: '#c8281e', c3: '#600c08', glow: 0xd83224, rough: 0.25, metal: 0.15 },
+  pear:   { name: 'PEAR',         shape: 'pear',  c1: '#f0e2a0', c2: '#c2b050', c3: '#786018', glow: 0xc2b050, rough: 0.5,  metal: 0.08 },
+  peach:  { name: 'PEACH',        shape: 'peach', c1: '#ffe0b0', c2: '#f09048', c3: '#a84828', glow: 0xf09850, rough: 0.85, metal: 0 },
+  plum:   { name: 'PLUM',         shape: 'plum',  c1: '#c090e0', c2: '#642e88', c3: '#26103e', glow: 0x8850b8, rough: 0.2,  metal: 0.1 },
+  orange: { name: 'ORANGE',       shape: 'orange', c1: '#ffa040', c2: '#f45c00', c3: '#8a2e00', glow: 0xff5c08, rough: 0.6, metal: 0 }
+};
+const FRUIT_KEYS = Object.keys(FRUITS);
+let currentFruit = 'golden';
+try { currentFruit = localStorage.getItem('serpentFruit') || 'golden'; } catch (e) {}
+if (!FRUITS[currentFruit]) currentFruit = 'golden';
+
+const fruitTexCache = {};
+function fruitTexFor(k) {
+  if (fruitTexCache[k]) return fruitTexCache[k];
+  const d = FRUITS[k];
+  fruitTexCache[k] = canvasTex(256, (x, s) => {
+    const g = x.createRadialGradient(s * 0.35, s * 0.3, 10, s / 2, s / 2, s * 0.7);
+    g.addColorStop(0, d.c1); g.addColorStop(0.55, d.c2); g.addColorStop(1, d.c3);
+    x.fillStyle = g; x.fillRect(0, 0, s, s);
+    const n = d.shape === 'orange' ? 1400 : 420; // peel pores vs lenticels
+    for (let i = 0; i < n; i++) {
+      x.fillStyle = `rgba(${rnd(30, 90) | 0},${rnd(20, 60) | 0},${rnd(5, 25) | 0},${rnd(.08, .25)})`;
+      x.beginPath(); x.arc(Math.random() * s, Math.random() * s, rnd(0.5, d.shape === 'orange' ? 1.4 : 1.8), 0, 7); x.fill();
+    }
+    if (d.shape === 'peach') { // the blush
+      const b = x.createRadialGradient(s * 0.65, s * 0.55, 5, s * 0.65, s * 0.55, s * 0.5);
+      b.addColorStop(0, 'rgba(200,60,50,.45)'); b.addColorStop(1, 'rgba(200,60,50,0)');
+      x.fillStyle = b; x.fillRect(0, 0, s, s);
+    }
+    if (d.shape === 'apple') { // faint vertical streaking
+      for (let i = 0; i < 40; i++) {
+        x.strokeStyle = `rgba(255,255,255,${rnd(.03, .08)})`;
+        x.lineWidth = rnd(1, 3);
+        const bx = Math.random() * s;
+        x.beginPath(); x.moveTo(bx, rnd(0, s * 0.3)); x.lineTo(bx + rnd(-8, 8), rnd(s * 0.6, s)); x.stroke();
+      }
+    }
+  });
+  return fruitTexCache[k];
+}
+
+function buildFruit(k, glowing) {
+  const d = FRUITS[k];
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    map: fruitTexFor(k), roughness: d.rough, metalness: d.metal,
+    emissive: glowing ? d.glow : 0x000000, emissiveIntensity: glowing ? 0.32 : 0,
+    bumpMap: d.shape === 'orange' ? fruitTexFor(k) : null,
+    bumpScale: d.shape === 'orange' ? 0.02 : 0
+  });
+  let body;
+  if (d.shape === 'pear') {
+    body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 20, 16), mat);
+    const bp = body.geometry.attributes.position;
+    for (let i = 0; i < bp.count; i++) {
+      const y = bp.getY(i);
+      const f = y > 0 ? 1 - (y / 0.4) * 0.45 : 1;
+      bp.setX(i, bp.getX(i) * f); bp.setZ(i, bp.getZ(i) * f);
+      if (y > 0) bp.setY(i, y * 1.6);
+    }
+    body.geometry.computeVertexNormals();
+  } else {
+    body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 16), mat);
+    const bp = body.geometry.attributes.position;
+    for (let i = 0; i < bp.count; i++) {
+      let x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i);
+      if (d.shape === 'apple') {
+        const a = Math.atan2(z, x);
+        const lo = 1 + 0.045 * Math.sin(a * 5);
+        x *= lo; z *= lo; y *= 0.88;
+      } else if (d.shape === 'peach' || d.shape === 'plum') {
+        const a = Math.atan2(z, x); // the suture crease
+        const cr = 1 - 0.06 * Math.exp(-Math.pow(Math.abs(a) - Math.PI / 2, 2) * 14);
+        x *= cr; z *= cr;
+        y *= d.shape === 'plum' ? 1.06 : 0.95;
+      }
+      bp.setXYZ(i, x, y, z);
+    }
+    body.geometry.computeVertexNormals();
+  }
+  g.add(body);
+  if (d.shape === 'orange') {
+    const calyx = new THREE.Mesh(new THREE.CircleGeometry(0.06, 6), leafMat);
+    calyx.rotation.x = -Math.PI / 2; calyx.position.y = 0.42;
+    g.add(calyx);
+    const nub = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 5), stemMat);
+    nub.position.y = 0.425; g.add(nub);
+  } else {
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.035, 0.3, 6), stemMat);
+    stem.position.y = d.shape === 'pear' ? 0.68 : 0.47; stem.rotation.z = 0.18;
+    g.add(stem);
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), leafMat);
+    leaf.scale.set(1.6, 0.12, 0.7);
+    leaf.position.set(0.16, d.shape === 'pear' ? 0.72 : 0.55, 0);
+    leaf.rotation.z = -0.4;
+    g.add(leaf);
+    if (d.shape === 'apple') {
+      const dimple = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), stemMat);
+      dimple.position.y = 0.34; dimple.scale.y = 0.4;
+      g.add(dimple);
+    }
+  }
+  g.userData.fruit = k;
+  return g;
+}
+
+function fruitIcon(k, size) {
+  const d = FRUITS[k] || FRUITS.golden;
+  const id = 'fg' + k + (Math.random() * 1e5 | 0);
+  let body;
+  if (d.shape === 'pear')
+    body = `<ellipse cx="17" cy="21" rx="9" ry="8.5" fill="url(#${id})"/><circle cx="17" cy="12" r="5.5" fill="url(#${id})"/>`;
+  else if (d.shape === 'plum')
+    body = `<ellipse cx="17" cy="19" rx="9.5" ry="10.5" fill="url(#${id})"/>`;
+  else
+    body = `<circle cx="17" cy="19" r="10.5" fill="url(#${id})"/>`;
+  const top = d.shape === 'orange'
+    ? `<circle cx="17" cy="8.6" r="1.8" fill="#4a6a1c"/>`
+    : `<path d="M17 9 Q16.4 5.5 18.6 3.4" stroke="#5a4020" stroke-width="1.6" fill="none"/>
+       <ellipse cx="21.5" cy="6.5" rx="3.4" ry="1.5" fill="#4a6a1c" transform="rotate(-24 21.5 6.5)"/>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 34 34" style="vertical-align:-7px"><defs>
+    <radialGradient id="${id}" cx="0.35" cy="0.3" r="0.85">
+      <stop offset="0%" stop-color="${d.c1}"/><stop offset="60%" stop-color="${d.c2}"/><stop offset="100%" stop-color="${d.c3}"/>
+    </radialGradient></defs>${body}${top}</svg>`;
+}
+
 const kins = [];
 function spawnKin() {
-  const g = new THREE.Group();
-  // apple body — slightly lobed
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 16), kinBodyMat);
-  body.scale.set(1, 0.88, 1);
-  const bp = body.geometry.attributes.position;
-  for (let i = 0; i < bp.count; i++) {
-    const a = Math.atan2(bp.getZ(i), bp.getX(i));
-    const lobes = 1 + 0.045 * Math.sin(a * 5);
-    bp.setX(i, bp.getX(i) * lobes); bp.setZ(i, bp.getZ(i) * lobes);
-  }
-  body.geometry.computeVertexNormals();
-  g.add(body);
-  // dimple + stem + leaf
-  const dimple = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), stemMat);
-  dimple.position.y = 0.34; dimple.scale.y = 0.4;
-  g.add(dimple);
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.035, 0.3, 6), stemMat);
-  stem.position.y = 0.47; stem.rotation.z = 0.18;
-  g.add(stem);
-  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), leafMat);
-  leaf.scale.set(1.6, 0.12, 0.7);
-  leaf.position.set(0.16, 0.55, 0);
-  leaf.rotation.z = -0.4;
-  g.add(leaf);
-  // halo + light
+  // any fruit of the garden may fall — your kin are not only apples
+  const k = FRUIT_KEYS[Math.floor(Math.random() * FRUIT_KEYS.length)];
+  const g = buildFruit(k, true);
+  const d = FRUITS[k];
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: glowTex, transparent: true, opacity: 0.75, depthWrite: false
+    map: glowTex, color: d.glow, transparent: true, opacity: 0.7, depthWrite: false
   }));
   halo.scale.setScalar(2.6);
   halo.position.y = 0.1;
   g.add(halo);
-  const gl = new THREE.PointLight(0xd4af37, 1.1, 10);
+  const gl = new THREE.PointLight(d.glow, 1.1, 10);
   gl.position.y = 0.5;
   g.add(gl);
   let x, z;
@@ -1319,28 +1431,23 @@ function updateTube(time) {
   bellyScutes.instanceMatrix.needsUpdate = true;
 }
 
-// ---- your own body, seen only at the end ----
+// ---- your own body, seen only at the end — whichever fruit you chose to be ----
 const playerApple = new THREE.Group();
-{
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 16), kinBodyMat);
-  body.scale.set(1, 0.88, 1);
-  playerApple.add(body);
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.035, 0.3, 6), stemMat);
-  stem.position.y = 0.45; stem.rotation.z = 0.18;
-  playerApple.add(stem);
-  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), leafMat);
-  leaf.scale.set(1.6, 0.12, 0.7); leaf.position.set(0.16, 0.52, 0); leaf.rotation.z = -0.4;
-  playerApple.add(leaf);
-  const gl = new THREE.PointLight(0xd4af37, 1.4, 9);
+playerApple.visible = false;
+scene.add(playerApple);
+function rebuildPlayerFruit() {
+  while (playerApple.children.length) playerApple.remove(playerApple.children[0]);
+  playerApple.add(buildFruit(currentFruit, true));
+  const gl = new THREE.PointLight(FRUITS[currentFruit].glow, 1.4, 9);
   gl.position.y = 0.4;
   playerApple.add(gl);
-  playerApple.visible = false;
-  scene.add(playerApple);
 }
-// golden flesh, scattered by the bites
+rebuildPlayerFruit();
+// your flesh, scattered by the bites — tinted to match what you were
+const chunkMat = new THREE.MeshStandardMaterial({ color: 0xe2b544, roughness: 0.5, metalness: 0.2 });
 const chunks = [];
 for (let i = 0; i < 6; i++) {
-  const c = new THREE.Mesh(new THREE.SphereGeometry(rnd(0.07, 0.13), 7, 6), kinBodyMat);
+  const c = new THREE.Mesh(new THREE.SphereGeometry(rnd(0.07, 0.13), 7, 6), chunkMat);
   c.visible = false;
   c.userData.v = new THREE.Vector3();
   scene.add(c);
@@ -1394,7 +1501,7 @@ const flock = {
   from: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
   to: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
 };
-function makeChick(bodyC, headC, beakC, cheek, mottle) {
+function makeChick(bodyC, headC, beakC, cheek, mottle, stripes) {
   const g = new THREE.Group();
   const bm = new THREE.MeshStandardMaterial({ color: bodyC, roughness: 0.95 });
   const hm = new THREE.MeshStandardMaterial({ color: headC, roughness: 0.95 });
@@ -1422,10 +1529,10 @@ function makeChick(bodyC, headC, beakC, cheek, mottle) {
     const placed = [], cand = [];
     for (let i = 0; i < bp.count; i++) {
       const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i);
-      if (y < -0.14) continue; // keep the underside clean
+      if (y < -0.19) continue; // keep only the very underside clean
       let ok = true;
       for (const q of placed)
-        if ((q[0] - x) ** 2 + (q[1] - y) ** 2 + (q[2] - z) ** 2 < 0.006) { ok = false; break; }
+        if ((q[0] - x) ** 2 + (q[1] - y) ** 2 + (q[2] - z) ** 2 < 0.0035) { ok = false; break; }
       if (!ok) continue;
       placed.push([x, y, z]); cand.push(i);
     }
@@ -1494,6 +1601,28 @@ function makeChick(bodyC, headC, beakC, cheek, mottle) {
   const bkL = new THREE.Mesh(new THREE.ConeGeometry(0.023, 0.06, 6), bkM);
   bkL.rotation.x = Math.PI / 2; bkL.position.set(0, -0.022, 0.15);
   headG.add(bkL);
+  // nostrils on the upper mandible
+  for (const s of [-1, 1]) {
+    const no = new THREE.Mesh(new THREE.SphereGeometry(0.006, 4, 3),
+      new THREE.MeshBasicMaterial({ color: 0x140d08 }));
+    no.position.set(s * 0.014, 0.012, 0.155);
+    headG.add(no);
+  }
+  // natal head stripes — the partridge pattern chicks hatch with
+  if (stripes) {
+    const stM = new THREE.MeshStandardMaterial({ color: stripes, roughness: 0.95 });
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), stM);
+    crown.scale.set(0.55, 0.4, 2.0);
+    crown.position.set(0, 0.115, -0.01);
+    headG.add(crown);
+    for (const s of [-1, 1]) {
+      const eyeline = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5), stM);
+      eyeline.scale.set(0.4, 0.45, 2.1);
+      eyeline.position.set(s * 0.1, 0.055, 0.0);
+      eyeline.rotation.y = s * 0.25;
+      headG.add(eyeline);
+    }
+  }
   for (const s of [-1, 1]) {
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6),
       new THREE.MeshStandardMaterial({ color: 0x0c0906, roughness: 0.15 }));
@@ -1539,9 +1668,9 @@ function makeChick(bodyC, headC, beakC, cheek, mottle) {
   scene.add(g);
   return { g, headG, wings, legs, t: rnd(0, 3), target: new THREE.Vector3(), walking: false };
 }
-chicks.push(makeChick(0x1c1916, 0x26201a, 0x7a5c32, 0xd8c9a0, 0.03)); // the black one, pale-cheeked
-chicks.push(makeChick(0xcdbb90, 0xd8c8a0, 0xc98f3f, 0, 0.04));        // the buff one
-chicks.push(makeChick(0x574b3e, 0x4a3f33, 0x9a7440, 0, 0.11));        // the grey partridge one, heavily mottled
+chicks.push(makeChick(0x1c1916, 0x26201a, 0x7a5c32, 0xd8c9a0, 0.03, 0)); // the black one, pale-cheeked
+chicks.push(makeChick(0xcdbb90, 0xd8c8a0, 0xc98f3f, 0, 0.04, 0));        // the buff one
+chicks.push(makeChick(0x574b3e, 0x4a3f33, 0x9a7440, 0, 0.11, 0x261c12)); // the partridge one — mottled, head-striped
 
 // ---- the nests: fixed addresses scattered through the orchard ----
 // the flock only ever travels nest to nest. how they chose them is not known.
@@ -1711,6 +1840,15 @@ function updateChicks(dt, t) {
       const down = cyc < 1 ? Math.max(0, Math.sin(cyc * Math.PI * 3)) : 0;
       c.headG.rotation.x = THREE.MathUtils.lerp(c.headG.rotation.x, down * 1.05, dt * 12);
       c.legs[0].rotation.x = c.legs[1].rotation.x = 0;
+    }
+    // an occasional settle-and-shake of the wings
+    if (c.flap === undefined) c.flap = 0;
+    if (c.flap <= 0 && Math.random() < dt * 0.06) c.flap = 0.55;
+    if (c.flap > 0) {
+      c.flap -= dt;
+      const fw = Math.sin(c.flap * 25) * 0.8 * Math.min(1, c.flap * 4);
+      c.wings[0].rotation.z = fw;
+      c.wings[1].rotation.z = -fw;
     }
   }
 }
@@ -2075,6 +2213,12 @@ const whispers = [
   'the shed skin was longer than the road', 'nothing here dies quickly'
 ];
 let whisperT = 0;
+// each gathered kin shows as a dot in the colour of the fruit it was
+function renderKinHUD() {
+  $('kin').innerHTML = (player.kinList || []).slice(-20)
+    .map(f => `<span style="color:#${(FRUITS[f] || FRUITS.golden).glow.toString(16).padStart(6, '0')};text-shadow:0 0 6px #${(FRUITS[f] || FRUITS.golden).glow.toString(16).padStart(6, '0')}66">●</span>`)
+    .join(' ');
+}
 function showWhisper(txt) {
   const w = $('whisper');
   w.textContent = txt;
@@ -2171,7 +2315,7 @@ document.addEventListener('keydown', wake, { once: true });
 let scores = [];
 try { scores = JSON.parse(localStorage.getItem('serpentScores') || '[]'); } catch (e) {}
 function saveScore(timeS, kin) {
-  scores.push({ t: timeS, k: kin, d: new Date().toISOString().slice(0, 10) });
+  scores.push({ t: timeS, k: kin, d: new Date().toISOString().slice(0, 10), f: currentFruit });
   scores.sort((a, b) => b.t - a.t);
   scores = scores.slice(0, 10);
   try { localStorage.setItem('serpentScores', JSON.stringify(scores)); } catch (e) {}
@@ -2181,7 +2325,7 @@ function renderScores() {
   el.innerHTML = scores.length
     ? scores.map((s, i) => {
         const m = Math.floor(s.t / 60), ss = Math.floor(s.t % 60);
-        return `<div class="scoreRow"><span>${i + 1}.</span><span>${m}:${String(ss).padStart(2, '0')} survived</span><span class="gold">${s.k} kin</span><span>${s.d}</span></div>`;
+        return `<div class="scoreRow"><span>${i + 1}.</span><span>${fruitIcon(s.f || 'golden', 20)}</span><span>${m}:${String(ss).padStart(2, '0')} survived</span><span class="gold">${s.k} kin</span><span>${s.d}</span></div>`;
       }).join('')
     : '<p class="sub">No one has lasted long enough to be remembered.</p>';
 }
@@ -2190,7 +2334,8 @@ function renderScores() {
 function startGame() {
   player.pos.set(0, 1.1, 0);
   player.yaw = 0; player.pitch = 0;
-  player.battery = 100; player.kin = 0; player.time = 0; player.alive = true;
+  player.battery = 100; player.kin = 0; player.kinList = []; player.time = 0; player.alive = true;
+  renderKinHUD();
   serpent.state = 'lurk'; serpent.stateT = 0; serpent.t = 0;
   serpent.head.position.set(60, 1.35, 60);
   serpent.head.scale.setScalar(1);
@@ -2204,6 +2349,9 @@ function startGame() {
   blackoutT = 0; panicShake = 0;
   witness.intensity = 0;
   playerApple.visible = false;
+  rebuildPlayerFruit();
+  selfGlow.color.setHex(FRUITS[currentFruit].glow);
+  chunkMat.color.set(FRUITS[currentFruit].c2);
   for (const c of chunks) c.visible = false;
   selfGlow.intensity = 0.85;
   for (const k of kins) scene.remove(k);
@@ -2256,7 +2404,29 @@ function setControlMode(m) {
 $('modeAuto').onclick = () => setControlMode('auto');
 $('modePc').onclick = () => setControlMode('pc');
 $('modeTouch').onclick = () => setControlMode('touch');
-$('settingsBtn').onclick = () => { updateModeButtons(); $('title').classList.add('hidden'); $('settings').classList.remove('hidden'); };
+// ---- fruit selection ----
+function updateFruitButtons() {
+  for (const k of FRUIT_KEYS)
+    $('fruit_' + k).classList.toggle('active', currentFruit === k);
+  $('fruitDesc').textContent = 'Tonight, you are the ' + FRUITS[currentFruit].name.toLowerCase() + '.';
+}
+{
+  const row = $('fruitRow');
+  for (const k of FRUIT_KEYS) {
+    const b = document.createElement('button');
+    b.id = 'fruit_' + k;
+    b.className = 'btn modebtn';
+    b.style.cssText = 'font-size:11px;padding:9px 12px;letter-spacing:1px;line-height:1.6;';
+    b.innerHTML = fruitIcon(k, 26) + '<br>' + FRUITS[k].name;
+    b.onclick = () => {
+      currentFruit = k;
+      try { localStorage.setItem('serpentFruit', k); } catch (e) {}
+      updateFruitButtons();
+    };
+    row.appendChild(b);
+  }
+}
+$('settingsBtn').onclick = () => { updateModeButtons(); updateFruitButtons(); $('title').classList.add('hidden'); $('settings').classList.remove('hidden'); };
 $('settingsBack').onclick = () => { $('settings').classList.add('hidden'); $('title').classList.remove('hidden'); };
 $('toTitle').onclick = () => { $('death').classList.add('hidden'); $('title').classList.remove('hidden'); startMusic('title'); };
 
@@ -2268,11 +2438,13 @@ let bait = null, baitEatT = 0;
 function dropBait() {
   if (!player.alive || player.kin <= 0 || bait || scareT >= 0) return;
   player.kin--;
-  bait = new THREE.Group();
-  const b = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 12), kinBodyMat);
-  b.scale.set(1, 0.88, 1);
-  bait.add(b);
-  const gl = new THREE.PointLight(0xd4af37, 1.2, 8);
+  // you sacrifice the most recently gathered kin — the bait IS that fruit
+  const bk = (player.kinList && player.kinList.length)
+    ? player.kinList.pop()
+    : FRUIT_KEYS[Math.floor(Math.random() * FRUIT_KEYS.length)];
+  renderKinHUD();
+  bait = buildFruit(bk, true);
+  const gl = new THREE.PointLight(FRUITS[bk].glow, 1.2, 8);
   gl.position.y = 0.5;
   bait.add(gl);
   bait.position.set(player.pos.x, 0.45, player.pos.z);
@@ -2522,7 +2694,7 @@ function animate() {
         for (const c of chunks) c.visible = false;
         const m = Math.floor(player.time / 60), s = Math.floor(player.time % 60);
         saveScore(player.time, player.kin);
-        $('stats').innerHTML = `You lasted ${m}:${String(s).padStart(2, '0')} &nbsp;&bull;&nbsp; Kin gathered: ${player.kin}`;
+        $('stats').innerHTML = `${fruitIcon(currentFruit, 30)} &nbsp;You lasted ${m}:${String(s).padStart(2, '0')} &nbsp;&bull;&nbsp; Kin gathered: ${player.kin}`;
         $('death').classList.remove('hidden');
         startMusic('devoured');
       }
@@ -2536,7 +2708,6 @@ function animate() {
     player.time += dt;
     const m = Math.floor(player.time / 60), s = Math.floor(player.time % 60);
     $('timer').textContent = `${m}:${String(s).padStart(2, '0')}`;
-    $('kin').textContent = player.kin ? '●'.repeat(Math.min(player.kin, 20)) : '';
 
     // ----- movement -----
     const speed = 8.5;
@@ -2593,6 +2764,8 @@ function animate() {
       if (k.position.distanceTo(player.pos) < 1.5) {
         scene.remove(k); kins.splice(i, 1);
         player.kin++;
+        player.kinList.push(k.userData.fruit || 'golden');
+        renderKinHUD();
         player.battery = Math.min(100, player.battery + 34);
         chime();
         spawnKin();
